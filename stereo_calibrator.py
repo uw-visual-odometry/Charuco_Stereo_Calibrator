@@ -21,11 +21,13 @@ class StereoCalibrator:
         size_of_chessboard_squares_mm=23,
         f_in_mm=2.75,
         pixel_size_mm=1.4e-3,
+        debug=False,
     ):
         self.chessboard_size = chessboard_size
         self.frame_size_h = frame_size_h
         self.frame_size_w = frame_size_w
         self.size_of_chessboard_squares_mm = size_of_chessboard_squares_mm
+        self.debug = debug
 
         # termination criteria
         self.criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -50,6 +52,8 @@ class StereoCalibrator:
             f_in_pixels = f_in_mm / pixel_size_mm
             cx_in_pixel = frame_size_w // 2
             cy_in_pixel = frame_size_h // 2
+
+            # Note: if sensor pixel is not square, it needs fx and fy.
             self.known_camera_matrix = np.array(
                 [
                     [f_in_pixels, 0, cx_in_pixel],
@@ -99,6 +103,111 @@ class StereoCalibrator:
                     gray_right, corners_right, (11, 11), (-1, -1), self.criteria
                 )
                 self.imgpointsR.append(corners2_right)
+
+            if self.debug:
+                self.visualize_and_save_corners(
+                    img_left,
+                    corners2_left,
+                    ret_left,
+                    img_right,
+                    corners2_right,
+                    ret_right,
+                    img_left_path,
+                    img_right_path,
+                )
+
+    def draw_thicker_markers(self, img, corners, thickness=10, radius=35):
+        """Draw thicker circles at detected corners and connect them with lines using row-based colors."""
+        cols, rows = self.chessboard_size
+        num_corners = len(corners)
+
+        # Define colors for alternating rows
+        colors = [
+            (255, 0, 0),  # Red
+            (0, 255, 0),  # Green
+            (0, 0, 255),  # Blue
+            (255, 255, 0),  # Cyan
+            (255, 0, 255),  # Magenta
+            (0, 255, 255),  # Yellow
+            (128, 0, 128),  # Purple
+            (0, 128, 128),  # Teal
+            (128, 128, 0),  # Olive
+            (128, 128, 128),  # Gray
+            (255, 128, 0),  # Orange
+            (255, 192, 203),  # Pink
+            (128, 0, 0),  # Maroon
+            (192, 192, 192),  # Silver
+            (0, 128, 0),  # Dark Green
+        ]
+
+        # Draw the circles and lines following the color for each row
+        for row in range(rows):
+            color = colors[row % len(colors)]  # Alternate colors based on row index
+            for col in range(cols):
+                idx = row * cols + col
+                if idx < num_corners:
+                    center = tuple(map(int, corners[idx].ravel()))
+                    cv.circle(img, center, radius, color, thickness)
+
+                    # Draw horizontal line to the next column if within bounds
+                    if col < cols - 1:
+                        next_idx = idx + 1
+                        if next_idx < num_corners:
+                            next_center = tuple(map(int, corners[next_idx].ravel()))
+                            cv.line(img, center, next_center, color, int(thickness / 2))
+
+    def visualize_and_save_corners(
+        self,
+        img_left,
+        corners2_left,
+        ret_left,
+        img_right,
+        corners2_right,
+        ret_right,
+        img_left_path,
+        img_right_path,
+    ):
+        # Create a debug directory if it doesn't exist
+        debug_dir = "debug"
+        if not os.path.exists(debug_dir):
+            os.makedirs(debug_dir)
+
+        """Visualize and save chessboard corners if debug is enabled."""
+        cv.drawChessboardCorners(
+            img_left, self.chessboard_size, corners2_left, ret_left
+        )
+        cv.drawChessboardCorners(
+            img_right, self.chessboard_size, corners2_right, ret_right
+        )
+
+        # Optionally, overlay thicker markers on each corner
+        self.draw_thicker_markers(img_left, corners2_left)
+        self.draw_thicker_markers(img_right, corners2_right)
+
+        # Concatenate images horizontally
+        combined_image = np.hstack((img_left, img_right))
+
+        # Create a resizable window for visualization
+        cv.namedWindow("Stereo Calibration Debug", cv.WINDOW_NORMAL)
+
+        # Resize the window if needed
+        cv.resizeWindow(
+            "Stereo Calibration Debug", 960 * 2, 540
+        )  # Adjust the size as needed
+
+        # Display the combined image
+        cv.imshow("Stereo Calibration Debug", combined_image)
+
+        left_debug_path = os.path.join(
+            debug_dir, f"checker_{os.path.basename(img_left_path)}"
+        )
+        right_debug_path = os.path.join(
+            debug_dir, f"checker_{os.path.basename(img_right_path)}"
+        )
+        cv.imwrite(left_debug_path, img_left)
+        cv.imwrite(right_debug_path, img_right)
+        cv.waitKey(2000)  # Wait for 2000 milliseconds
+        cv.destroyAllWindows()  # Close windows after visualization
 
     def calibrate_camera(self, imgpoints):
         """Calibrate the camera using the provided image points."""
@@ -153,8 +262,8 @@ class StereoCalibrator:
             distR,
             rot,
             trans,
-            _,
-            _,
+            E,
+            F,
         ) = cv.stereoCalibrate(
             self.objpoints,
             self.imgpointsL,
@@ -262,10 +371,27 @@ class StereoCalibrator:
         print(f"Baseline Distance: {baseline_distance:.4f} mm")
 
 
-# Example usage
-images_left = glob.glob("downloaded_images/left/*.jpg")
-images_right = glob.glob("downloaded_images/right/*.jpg")
+if __name__ == "__main__":
 
-stereo_calibrator = StereoCalibrator()
-stereo_calibrator.perform_calibration(images_left, images_right)
-stereo_calibrator.print_results()
+    # Example usage
+    images_left = glob.glob("downloaded_images/left/*.jpg")
+    images_right = glob.glob("downloaded_images/right/*.jpg")
+
+    chessboard_size = (10, 7)
+    frame_size_h = 2592
+    frame_size_w = 4608
+    size_of_chessboard_squares_mm = 23
+    f_in_mm = 2.75
+    pixel_size_mm = 1.4e-3
+
+    stereo_calibrator = StereoCalibrator(
+        chessboard_size=chessboard_size,
+        frame_size_h=frame_size_h,
+        frame_size_w=frame_size_w,
+        size_of_chessboard_squares_mm=size_of_chessboard_squares_mm,
+        f_in_mm=f_in_mm,
+        pixel_size_mm=pixel_size_mm,
+        debug=True,
+    )
+    stereo_calibrator.perform_calibration(images_left, images_right)
+    stereo_calibrator.print_results()
