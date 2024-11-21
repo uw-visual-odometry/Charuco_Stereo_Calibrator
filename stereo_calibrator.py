@@ -3,6 +3,7 @@ import cv2 as cv
 import glob
 import re
 import os
+import matplotlib.pyplot as plt
 
 
 def numerical_sort(value):
@@ -64,6 +65,145 @@ class StereoCalibrator:
             )
         else:
             self.known_camera_matrix = None
+
+    def measure_outlier(
+        self, outlier_threshold_single: int = 1.5, outlier_threshold_stereo: int = 2.5
+    ):
+        """Identify and visualize outliers based on re-projection and stereo errors."""
+        errorsL = []
+        errorsR = []
+        stereo_errors = []
+
+        # Calculate re-projection errors for each image set
+        for objpoints, imgpointsL, imgpointsR, rvecL, tvecL, rvecR, tvecR in zip(
+            self.objpoints,
+            self.imgpointsL,
+            self.imgpointsR,
+            self.rvecsL,
+            self.tvecsL,
+            self.rvecsR,
+            self.tvecsR,
+        ):
+            projected_pointsL, _ = cv.projectPoints(
+                objpoints, rvecL, tvecL, self.cameraMatrixL, self.distL
+            )
+            projected_pointsR, _ = cv.projectPoints(
+                objpoints, rvecR, tvecR, self.cameraMatrixR, self.distR
+            )
+
+            errorL = cv.norm(imgpointsL, projected_pointsL, cv.NORM_L2) / len(
+                projected_pointsL
+            )
+            errorR = cv.norm(imgpointsR, projected_pointsR, cv.NORM_L2) / len(
+                projected_pointsR
+            )
+
+            # Calculate stereo error using the epipolar constraint
+            pointsL_h = cv.convertPointsToHomogeneous(imgpointsL).reshape(-1, 3)
+            pointsR_h = cv.convertPointsToHomogeneous(imgpointsR).reshape(-1, 3)
+            Fund_mat, _ = cv.findFundamentalMat(pointsL_h, pointsR_h, cv.FM_8POINT)
+
+            stereo_error = 0
+            for pl, pr in zip(pointsL_h, pointsR_h):
+                # Epipolar constraint: pl' * F * pr = 0
+                err = np.abs(pl @ Fund_mat @ pr.T)
+                stereo_error += err
+
+            stereo_error /= len(objpoints)
+
+            errorsL.append(errorL)
+            errorsR.append(errorR)
+            stereo_errors.append(stereo_error)
+
+        # Plot errors to visualize potential outliers
+        plt.figure(figsize=(10, 8))
+        plt.plot(errorsL, label="Left Camera Re-projection Error")
+        plt.plot(errorsR, label="Right Camera Re-projection Error")
+        plt.plot(stereo_errors, label="Stereo Error")
+        plt.xlabel("Image Index")
+        plt.ylabel("Error")
+        plt.title("Errors for Calibration Images")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+        # Determine and print outliers based on a threshold
+        reproject_threshold = max(
+            np.mean(errorsL) + outlier_threshold_single * np.std(errorsL),
+            np.mean(errorsR) + outlier_threshold_single * np.std(errorsR),
+        )
+        stereo_threshold = np.mean(stereo_errors) + outlier_threshold_stereo * np.std(
+            stereo_errors
+        )
+
+        outlier_indices = [
+            i
+            for i, (eL, eR, st_e) in enumerate(zip(errorsL, errorsR, stereo_errors))
+            if eL > reproject_threshold
+            or eR > reproject_threshold
+            or st_e > stereo_threshold
+        ]
+
+        if outlier_indices:
+            for idx in outlier_indices:
+                left_file_name = os.path.basename(images_left[idx])
+                right_file_name = os.path.basename(images_right[idx])
+                print(
+                    f"Outlier at index {idx}: Left Image: {left_file_name}, Right Image: {right_file_name}"
+                )
+        else:
+            print("No significant outliers detected.")
+
+    def save_rectified_images(self, images_left, images_right):
+        """Save both fully rectified images and ROI-cropped images."""
+        images_left.sort(key=numerical_sort)
+        images_right.sort(key=numerical_sort)
+
+        # Create directories for saving the rectified images
+        full_dir = "./rectified/full"
+        roi_dir = "./rectified/only_roi"
+        os.makedirs(full_dir, exist_ok=True)
+        os.makedirs(roi_dir, exist_ok=True)
+
+        for img_left_path, img_right_path in zip(images_left, images_right):
+            imgL = cv.imread(img_left_path)
+            imgR = cv.imread(img_right_path)
+
+            # Apply rectification maps
+            rectifiedL = cv.remap(
+                imgL, self.stereoMapL[0], self.stereoMapL[1], cv.INTER_LANCZOS4
+            )
+            rectifiedR = cv.remap(
+                imgR, self.stereoMapR[0], self.stereoMapR[1], cv.INTER_LANCZOS4
+            )
+
+            # Save full rectified images
+            imgL_filename = os.path.basename(img_left_path)
+            imgR_filename = os.path.basename(img_right_path)
+            rectifiedL_filename = f"{os.path.splitext(imgL_filename)[0]}_rectified.jpg"
+            rectifiedR_filename = f"{os.path.splitext(imgR_filename)[0]}_rectified.jpg"
+            rectifiedL_path = os.path.join(full_dir, rectifiedL_filename)
+            rectifiedR_path = os.path.join(full_dir, rectifiedR_filename)
+
+            cv.imwrite(rectifiedL_path, rectifiedL)
+            cv.imwrite(rectifiedR_path, rectifiedR)
+
+            # Crop to ROI and save
+            xL, yL, wL, hL = self.rect_roi_L
+            roi_rectifiedL = rectifiedL[yL : yL + hL, xL : xL + wL]
+            roi_rectifiedL_filename = (
+                f"{os.path.splitext(imgL_filename)[0]}_rectified_roi.jpg"
+            )
+            roi_rectifiedL_path = os.path.join(roi_dir, roi_rectifiedL_filename)
+            cv.imwrite(roi_rectifiedL_path, roi_rectifiedL)
+
+            xR, yR, wR, hR = self.rect_roi_R
+            roi_rectifiedR = rectifiedR[yR : yR + hR, xR : xR + wR]
+            roi_rectifiedR_filename = (
+                f"{os.path.splitext(imgR_filename)[0]}_rectified_roi.jpg"
+            )
+            roi_rectifiedR_path = os.path.join(roi_dir, roi_rectifiedR_filename)
+            cv.imwrite(roi_rectifiedR_path, roi_rectifiedR)
 
     def process_images(self, images_left, images_right):
         """Process stereo images to find chessboard corners."""
@@ -231,7 +371,7 @@ class StereoCalibrator:
                 None,
                 None,
             )
-        return ret, camera_matrix, dist
+        return ret, camera_matrix, dist, rvecs, tvecs
 
     def perform_calibration(self, images_left, images_right):
         """Main function to perform stereo calibration."""
@@ -240,14 +380,29 @@ class StereoCalibrator:
         print("Known Camera Matrix:")
         print(self.known_camera_matrix)
 
-        retL, cameraMatrixL, distL = self.calibrate_camera(self.imgpointsL)
+        retL, cameraMatrixL, distL, rvecsL, tvecsL = self.calibrate_camera(
+            self.imgpointsL
+        )
+        # retL, cameraMatrixL, distL = self.calibrate_camera(self.imgpointsL)
         print(f"Left Camera Calibration RMS Error: {retL}")
 
-        retR, cameraMatrixR, distR = self.calibrate_camera(self.imgpointsR)
+        retR, cameraMatrixR, distR, rvecsR, tvecsR = self.calibrate_camera(
+            self.imgpointsR
+        )
+        # retR, cameraMatrixR, distR = self.calibrate_camera(self.imgpointsR)
         print(f"Right Camera Calibration RMS Error: {retR}")
 
         self.stereo_calibration(cameraMatrixL, distL, cameraMatrixR, distR)
         self.save_matrices(cameraMatrixL, distL, cameraMatrixR, distR)
+
+        self.rvecsL = rvecsL
+        self.tvecsL = tvecsL
+        self.rvecsR = rvecsR
+        self.tvecsR = tvecsR
+        self.cameraMatrixL = cameraMatrixL
+        self.distL = distL
+        self.cameraMatrixR = cameraMatrixR
+        self.distR = distR
 
     def stereo_calibration(self, camera_matrix_L, dist_L, camera_matrix_R, dist_R):
         """Perform stereo calibration."""
@@ -294,6 +449,8 @@ class StereoCalibrator:
 
         self.rectL = rectL
         self.rectR = rectR
+        self.rect_roi_L = roi_L
+        self.rect_roi_R = roi_R
 
         stereoMapL = cv.initUndistortRectifyMap(
             newCameraMatrixL,
@@ -377,12 +534,14 @@ if __name__ == "__main__":
     images_left = glob.glob("downloaded_images/left/*.jpg")
     images_right = glob.glob("downloaded_images/right/*.jpg")
 
-    chessboard_size = (10, 7)
-    frame_size_h = 2592
-    frame_size_w = 4608
+    chessboard_size = (7, 10)
+    frame_size_h = 2592 // 2
+    frame_size_w = 4608 // 2
     size_of_chessboard_squares_mm = 23
-    f_in_mm = 2.75
-    pixel_size_mm = 1.4e-3
+
+    # if below is None, then algorithm figure this out.
+    f_in_mm = 4.74
+    pixel_size_mm = 1.4e-3 * 2  # binning
 
     stereo_calibrator = StereoCalibrator(
         chessboard_size=chessboard_size,
@@ -391,7 +550,9 @@ if __name__ == "__main__":
         size_of_chessboard_squares_mm=size_of_chessboard_squares_mm,
         f_in_mm=f_in_mm,
         pixel_size_mm=pixel_size_mm,
-        debug=True,
+        debug=False,
     )
     stereo_calibrator.perform_calibration(images_left, images_right)
+    stereo_calibrator.save_rectified_images(images_left, images_right)
     stereo_calibrator.print_results()
+    stereo_calibrator.measure_outlier()

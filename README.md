@@ -1,53 +1,73 @@
-# StereoCalibrator README
 
 ## Overview
 
-The `StereoCalibrator` class is a Python-based tool designed to facilitate the calibration of stereo camera systems. This script processes images from stereo cameras, extracts chessboard features, and computes calibration parameters crucial for applications involving 3D reconstruction, depth estimation, and stereo vision.
+The `StereoCalibrator` is a Python tool for stereo camera calibration. It processes stereo images to extract chessboard features and computes both camera and stereo calibration parameters. These parameters are essential for applications like 3D reconstruction, depth estimation, and stereo vision.
 
 ## Features
 
-- **Image Processing**: Automatically sorts and processes input images to detect chessboard corners.
-- **Camera Calibration**: Computes intrinsic parameters like the camera matrix and distortion coefficients for both cameras.
-- **Stereo Calibration**: Determines the rotation, translation, rectification, and projection matrices between two cameras.
-- **Calibration Results**: Saves all computed matrices and maps for future use and prints them in a readable format.
+- Automatic detection of chessboard corners in stereo images.
+- Computes intrinsic (camera matrix, distortion coefficients) and stereo parameters (rotation, translation, rectification, projection, and Q matrix).
+- Visualizes camera calibration errors to assess quality.
+- Detects and highlights outliers in calibration data for debugging.
+- Saves calibration data to `stereoMap.xml`.
+- Supports corner visualization with customizable markers for debugging.
 
+## Quick Start
 
-## Usage
+1. **Prepare Input Images**:
+   - Capture chessboard images from the stereo camera system and organize them in directories:
+     - `downloaded_images/left` (for left camera images)
+     - `downloaded_images/right` (for right camera images).
 
-1. **Image Preparation**: Capture chessboard images from both left and right cameras and place them into separate directories, e.g., `downloaded_images/left` and `downloaded_images/right`.
+2. **Run the Script**:
+   ```python
+   images_left = glob.glob("downloaded_images/left/*.jpg")
+   images_right = glob.glob("downloaded_images/right/*.jpg")
 
-2. **Script Execution**: Adjust the image path patterns if necessary and run the script:
+   stereo_calibrator = StereoCalibrator(
+       chessboard_size=(7, 10), 
+       frame_size_h=1296,  # Image height 
+       frame_size_w=2304,  # Image width 
+       size_of_chessboard_squares_mm=23,
+       debug=True  # Enable visualization if needed
+   )
+   stereo_calibrator.perform_calibration(images_left, images_right)
+   stereo_calibrator.print_results()
+   ```
+   
+3. **Visualization**:
+   - The system plots and visualizes camera calibration errors (re-projection and stereo errors). Outliers, if any, are identified.
+   - Example visualization of camera error plot:
 
-```python
-images_left = glob.glob("downloaded_images/left/*.jpg")
-images_right = glob.glob("downloaded_images/right/*.jpg")
+   ![Camera Error Visualization](demo/camera_error_visualization.png)
 
-stereo_calibrator = StereoCalibrator()
-stereo_calibrator.perform_calibration(images_left, images_right)
-stereo_calibrator.print_results()
-```
+4. **Results**:
+   - Key outcomes, such as focal length, rotation, and translation, are printed to the console.
+   - Calibration matrices and rectification data are saved in `stereoMap.xml`.
 
-3. **Results**: Calibration results will be printed to the console and saved to `stereoMap.xml`, which includes intrinsic camera parameters, rectification matrices, projection matrices, and the Q matrix for disparity-to-depth mapping.
+## Key Methods
 
-## Methods
-
-- **`process_images(images_left, images_right)`**: Processes stereo images and finds chessboard corners.
-- **`calibrate_camera(imgpoints)`**: Performs camera calibration using image points.
-- **`perform_calibration(images_left, images_right)`**: Main function to start the calibration process.
-- **`stereo_calibration(camera_matrix_L, dist_L, camera_matrix_R, dist_R)`**: Conducts stereo calibration and rectification.
-- **`save_matrices(camera_matrix_L, dist_L, camera_matrix_R, dist_R)`**: Saves the calibration results to an XML file.
-- **`print_results()`**: Outputs the focal length, rotation matrix, translation vector, and baseline distance.
+- **`perform_calibration(images_left, images_right)`**: Executes the full stereo calibration workflow.
+- **`save_rectified_images(images_left, images_right)`**: Executes the rectification including/excluding out of roi.
+- **`save_matrices(camera_matrix_L, dist_L, camera_matrix_R, dist_R)`**: Saves calibration and rectification parameters to an XML file.
+- **`measure_outlier()`**: Measures camera errors, visualizes calibration error plots, and highlights outliers.
 
 ## Parameters
 
-- `chessboard_size`: Tuple specifying the number of inner corners per a chessboard row and column (default: (10, 7)).
-- `frame_size_h` and `frame_size_w`: Dimensions of the images to be processed.
-- `size_of_chessboard_squares_mm`: Real dimension of the chessboard squares in millimeters (default: 23mm).
-- `f_in_mm`: Focal length of the camera in millimeters (optional).
-- `pixel_size_mm`: Physical size of a pixel in millimeters (optional).
+- `chessboard_size`: A tuple specifying the number of inner corners per row and column (default: `(7, 10)`).
+- `frame_size_h` and `frame_size_w`: Image resolution of the stereo camera system.
+- `size_of_chessboard_squares_mm`: Real-world chessboard square size (default: `23mm`).
+- Optional inputs:
+  - `f_in_mm`: Focal length in millimeters (optional if unknown).
+  - `pixel_size_mm`: Physical pixel size in millimeters (optional if unknown).
+  - ** if both values are already known, it requires significantly less calibration images.
+- `debug`: Set to `True` for visualizing the corners and error plots during calibration.
+
+## Notes
+
+- **Ensure the chessboard used matches the `chessboard_size` specified.**
+- Enable the `debug` mode to save visualizations of chessboard corners for every calibration image.
 
 ## License
 
-This project is open-source and freely redistributable with credit to its original authors.
-
-**Note**: Ensure that the chessboard pattern used corresponds to the `chessboard_size` specified.
+This project is open-source and free to use with proper attribution to the authors.
