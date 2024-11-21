@@ -70,4 +70,4 @@ The `StereoCalibrator` is a Python tool for stereo camera calibration. It proces
 
 ## License
 
-This project is open-source and free to use with proper attribution to the authors.
+This project is licensed under the MIT License. 
