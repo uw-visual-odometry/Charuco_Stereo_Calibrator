@@ -148,8 +148,12 @@ class StereoCalibrator:
             for idx in outlier_indices:
                 left_file_name = os.path.basename(images_left[idx])
                 right_file_name = os.path.basename(images_right[idx])
+                eL = errorsL[idx]
+                eR = errorsR[idx]
+                st_e = stereo_errors[idx]
                 print(
-                    f"Outlier at index {idx}: Left Image: {left_file_name}, Right Image: {right_file_name}"
+                    f"Outlier at index {idx}: Left Image: {left_file_name}, Right Image: {right_file_name}, "
+                    f"Left Error: {eL:.3f}, Right Error: {eR:.3f}, Stereo Error: {st_e:.3f}"
                 )
         else:
             print("No significant outliers detected.")
@@ -352,11 +356,12 @@ class StereoCalibrator:
     def calibrate_camera(self, imgpoints):
         """Calibrate the camera using the provided image points."""
         if self.known_camera_matrix is not None:
+            given_camera_matrix = self.known_camera_matrix.copy()
             ret, camera_matrix, dist, rvecs, tvecs = cv.calibrateCamera(
                 self.objpoints,
                 imgpoints,
                 (self.frame_size_w, self.frame_size_h),
-                self.known_camera_matrix,
+                given_camera_matrix,  # this matrix will be updated in openCV
                 (
                     cv.CALIB_USE_INTRINSIC_GUESS
                     + cv.CALIB_FIX_FOCAL_LENGTH
@@ -383,13 +388,13 @@ class StereoCalibrator:
         retL, cameraMatrixL, distL, rvecsL, tvecsL = self.calibrate_camera(
             self.imgpointsL
         )
-        # retL, cameraMatrixL, distL = self.calibrate_camera(self.imgpointsL)
+        print(f"Left Camera Matrix: {cameraMatrixL}")
         print(f"Left Camera Calibration RMS Error: {retL}")
 
         retR, cameraMatrixR, distR, rvecsR, tvecsR = self.calibrate_camera(
             self.imgpointsR
         )
-        # retR, cameraMatrixR, distR = self.calibrate_camera(self.imgpointsR)
+        print(f"Right Camera Matrix: {cameraMatrixR}")
         print(f"Right Camera Calibration RMS Error: {retR}")
 
         self.stereo_calibration(cameraMatrixL, distL, cameraMatrixR, distR)
@@ -432,6 +437,9 @@ class StereoCalibrator:
             flags,
         )
         print(f"Stereo Calibration RMS Error: {retStereo}")
+
+        # Assign the Fundamental matrix to self.F
+        self.F = F
 
         # Stereo Rectification
         rectify_scale = 1
@@ -527,6 +535,149 @@ class StereoCalibrator:
         baseline_distance = np.linalg.norm(self.trans)
         print(f"Baseline Distance: {baseline_distance:.4f} mm")
 
+    def visualize_epipolar(
+        self, left_images, right_images, save: bool = False, num_lines: int = 10
+    ):
+        """
+        Visualize epipolar geometry after stereo calibration by drawing epipolar lines
+        on the rectified left and right images.
+
+        Args:
+            save (bool): Whether to save the visualization images to disk.
+            num_lines (int): Number of random epipolar lines to draw for visualization.
+        """
+
+        # If the inputs are single file paths (strings), convert them to lists
+        if isinstance(left_images, str):
+            left_images = [left_images]
+        if isinstance(right_images, str):
+            right_images = [right_images]
+
+        # Rectification must have been performed
+        if not hasattr(self, "stereoMapL") or not hasattr(self, "stereoMapR"):
+            raise ValueError(
+                "Stereo calibration has not been performed or rectification data is missing!"
+            )
+
+        # Load left and right images
+        left_images.sort(key=numerical_sort)
+        right_images.sort(key=numerical_sort)
+
+        # Define a target visualization size
+        target_width = 960 * 2  # Adjust as needed
+        target_height = 540  # Adjust as needed
+
+        for idx, (left_img_path, right_img_path) in enumerate(
+            zip(left_images, right_images)
+        ):
+            print(
+                f"Visualizing epipolar geometry for {left_img_path} and {right_img_path}..."
+            )
+
+            # Read the images
+            img_left = cv.imread(left_img_path)
+            img_right = cv.imread(right_img_path)
+
+            # Rectify the images using the stereo map
+            imgL_rectified = cv.remap(
+                img_left, self.stereoMapL[0], self.stereoMapL[1], cv.INTER_LINEAR
+            )
+            imgR_rectified = cv.remap(
+                img_right, self.stereoMapR[0], self.stereoMapR[1], cv.INTER_LINEAR
+            )
+
+            # Generate random sample points within the image dimensions
+            height, width, _ = imgL_rectified.shape
+
+            y_coords = np.linspace(0, height - 1, num=num_lines)
+            x_coords = np.random.randint(0, width, size=num_lines)
+
+            # Combine `x` and `y` into points
+            points = np.column_stack((x_coords, y_coords)).reshape(-1, 1, 2)
+            points = points.astype(np.float32).reshape(-1, 1, 2)
+
+            # Compute epilines for points in the left image and map them to the right image
+            epilinesR = cv.computeCorrespondEpilines(points, 1, self.F).reshape(-1, 3)
+            epilinesL = cv.computeCorrespondEpilines(points, 2, self.F).reshape(-1, 3)
+
+            imgL_with_epilines = self.draw_epilines_on_image(
+                imgL_rectified, epilinesR, points
+            )
+            imgR_with_epilines = self.draw_epilines_on_image(
+                imgR_rectified, epilinesL, points
+            )
+
+            # Combine rectified left and right images with epipolar lines
+            combined_output = np.hstack((imgL_with_epilines, imgR_with_epilines))
+
+            # Resize the combined image to fit the screen
+            scale = max(
+                target_width / combined_output.shape[1],
+                target_height / combined_output.shape[0],
+            )
+            resized_output = cv.resize(
+                combined_output, None, fx=scale, fy=scale, interpolation=cv.INTER_AREA
+            )
+
+            # Create a resizable window
+            cv.namedWindow(
+                f"Epipolar Geometry Visualization - Pair {idx + 1}", cv.WINDOW_NORMAL
+            )
+            cv.imshow(
+                f"Epipolar Geometry Visualization - Pair {idx + 1}", resized_output
+            )
+
+            # Display the result for a specified duration or until a key is pressed
+            cv.waitKey(7000)  # Display for 3 seconds or adjust as needed
+
+            # Save the visualization if required
+            if save:
+                output_folder = "epipolar_geometry_visualizations"
+                os.makedirs(output_folder, exist_ok=True)
+                output_path = os.path.join(
+                    output_folder, f"epipolar_image_pair_{idx + 1}.jpg"
+                )
+                cv.imwrite(output_path, combined_output)
+
+        # Clean up OpenCV windows
+        cv.destroyAllWindows()
+
+    def draw_epilines_on_image(
+        self, img, epilines, points, color=(0, 255, 0), thickness=2
+    ):
+        """
+        Helper function to draw epilines on an image.
+
+        Args:
+            img (numpy.ndarray): The input image on which to draw epilines.
+            epilines (numpy.ndarray): The epilines computed for the points.
+            points (list of numpy.ndarray): Points corresponding to the epilines.
+            color (tuple): The color of the epilines.
+            thickness (int): The thickness of the epilines.
+
+        Returns:
+            numpy.ndarray: The image with epilines drawn.
+        """
+        img_with_lines = img.copy()
+
+        for line, point in zip(epilines, points):
+            a, b, c = line  # Epiline coefficients: ax + by + c = 0
+            x0, y0 = 0, int(-c / b) if b != 0 else 0  # Line at the left image boundary
+            x1, y1 = img.shape[1], (
+                int(-(c + a * img.shape[1]) / b) if b != 0 else 0
+            )  # Line at the right boundary
+
+            # Draw the epiline on the image
+            cv.line(img_with_lines, (x0, y0), (x1, y1), color, thickness)
+
+            # Draw the corresponding point in the image
+            pt = tuple(int(x) for x in point.ravel())
+            cv.circle(
+                img_with_lines, pt, radius=5, color=(255, 0, 0), thickness=-1
+            )  # Mark the point
+
+        return img_with_lines
+
 
 if __name__ == "__main__":
 
@@ -552,7 +703,12 @@ if __name__ == "__main__":
         pixel_size_mm=pixel_size_mm,
         debug=False,
     )
+
+    left_show = "test_12mp_nonwide/1732617733_left.jpg"
+    right_show = "test_12mp_nonwide/1732617733_right.jpg"
+
     stereo_calibrator.perform_calibration(images_left, images_right)
     stereo_calibrator.save_rectified_images(images_left, images_right)
+    stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
     stereo_calibrator.print_results()
     stereo_calibrator.measure_outlier()
