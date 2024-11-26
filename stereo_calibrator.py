@@ -4,6 +4,24 @@ import glob
 import re
 import os
 import matplotlib.pyplot as plt
+import datetime
+
+
+def log_message(message, level="INFO"):
+    """Helper function to log messages with color and timestamps."""
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    level_colors = {
+        "INFO": "\033[94m",  # Blue
+        "WARNING": "\033[93m",  # Yellow
+        "SUCCESS": "\033[92m",  # Green
+        "ERROR": "\033[91m",  # Red
+    }
+    reset_color = "\033[0m"
+    color = level_colors.get(level.upper(), "\033[94m")  # Default to Blue for INFO
+    print(f"{color}[{level.upper()}] {now} - {message}{reset_color}")
+
+
+log_message("Calibration started for stereo images.", level="INFO")
 
 
 def numerical_sort(value):
@@ -186,8 +204,8 @@ class StereoCalibrator:
             imgR_filename = os.path.basename(img_right_path)
             rectifiedL_filename = f"{os.path.splitext(imgL_filename)[0]}_rectified.jpg"
             rectifiedR_filename = f"{os.path.splitext(imgR_filename)[0]}_rectified.jpg"
-            rectifiedL_path = os.path.join(full_dir, rectifiedL_filename)
-            rectifiedR_path = os.path.join(full_dir, rectifiedR_filename)
+            rectifiedL_path = os.path.join(full_dir, "full", rectifiedL_filename)
+            rectifiedR_path = os.path.join(full_dir, "full", rectifiedR_filename)
 
             cv.imwrite(rectifiedL_path, rectifiedL)
             cv.imwrite(rectifiedR_path, rectifiedR)
@@ -380,26 +398,34 @@ class StereoCalibrator:
 
     def perform_calibration(self, images_left, images_right):
         """Main function to perform stereo calibration."""
+        log_message("Starting stereo image processing...", "INFO")
         self.process_images(images_left, images_right)
 
-        print("Known Camera Matrix:")
-        print(self.known_camera_matrix)
+        self.print_pretty_matrix("✅Known Camera Intrinsics", self.known_camera_matrix)
 
+        log_message("Calibrating the left camera...", "INFO")
         retL, cameraMatrixL, distL, rvecsL, tvecsL = self.calibrate_camera(
             self.imgpointsL
         )
-        print(f"Left Camera Matrix: {cameraMatrixL}")
-        print(f"Left Camera Calibration RMS Error: {retL}")
+        log_message(f"🎥 Left Camera Calibration RMS Error: {retL:.4f}", "SUCCESS")
+        self.print_pretty_matrix("Left Camera Matrix", cameraMatrixL)
 
+        log_message("Calibrating the right camera...", "INFO")
         retR, cameraMatrixR, distR, rvecsR, tvecsR = self.calibrate_camera(
             self.imgpointsR
         )
-        print(f"Right Camera Matrix: {cameraMatrixR}")
-        print(f"Right Camera Calibration RMS Error: {retR}")
+        log_message(f"🎥 Right Camera Calibration RMS Error: {retR:.4f}", "SUCCESS")
+        self.print_pretty_matrix("Right Camera Matrix", cameraMatrixR)
 
+        log_message("Performing stereo calibration...", "INFO")
         self.stereo_calibration(cameraMatrixL, distL, cameraMatrixR, distR)
+
+        log_message("Saving calibration matrices and parameters...", "INFO")
         self.save_matrices(cameraMatrixL, distL, cameraMatrixR, distR)
 
+        log_message("Stereo calibration completed successfully!", "SUCCESS")
+
+        # Save results for class attributes
         self.rvecsL = rvecsL
         self.tvecsL = tvecsL
         self.rvecsR = rvecsR
@@ -436,7 +462,9 @@ class StereoCalibrator:
             criteria_stereo,
             flags,
         )
-        print(f"Stereo Calibration RMS Error: {retStereo}")
+        log_message(
+            f"🎥 Stereo Camera Calibration RMS Error: {retStereo:.4f}", "SUCCESS"
+        )
 
         # Assign the Fundamental matrix to self.F
         self.F = F
@@ -520,20 +548,28 @@ class StereoCalibrator:
         print("All parameters saved successfully!")
 
     def print_pretty_matrix(self, name, matrix):
-        """Utility function to print matrices in a readable format."""
-        print(f"\n{name}:\n")
+        """Utility function to print matrices in a readable format with separators."""
+        divider = "=" * 50
+        print(f"\n{divider}\n{name.upper()}:\n{divider}\n")
         print(np.array2string(matrix, formatter={"float_kind": lambda x: f"{x:0.4f}"}))
+        print(f"\n{divider}")
 
     def print_results(self):
         """Print calibration results."""
+        divider = "=" * 70
+
+        print(f"\n{divider}")
+        print(f"{'CALIBRATION RESULTS':^70}")
+        print(f"{divider}\n")
+
         focal_length_px = self.projMatrixL[0, 0]
-        print("focal_length_px:", focal_length_px)
+        print(f"🎯 Focal Length in Pixels: {focal_length_px:.4f} px")
 
         self.print_pretty_matrix("Rotation Matrix (rot)", self.rot)
         self.print_pretty_matrix("Translation Vector (trans)", self.trans)
 
         baseline_distance = np.linalg.norm(self.trans)
-        print(f"Baseline Distance: {baseline_distance:.4f} mm")
+        print(f"🔄 Baseline Distance (Camera Separation): {baseline_distance:.4f} mm")
 
     def visualize_epipolar(
         self, left_images, right_images, save: bool = False, num_lines: int = 10
