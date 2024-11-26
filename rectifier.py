@@ -98,10 +98,10 @@ class Rectifier:
 
         # Apply the rectification maps without resizing
         rectified_left = cv.remap(
-            img_left, self.stereoMapL_x, self.stereoMapL_y, cv.INTER_LINEAR
+            img_left, self.stereoMapL_x, self.stereoMapL_y, cv.INTER_LANCZOS4
         )
         rectified_right = cv.remap(
-            img_right, self.stereoMapR_x, self.stereoMapR_y, cv.INTER_LINEAR
+            img_right, self.stereoMapR_x, self.stereoMapR_y, cv.INTER_LANCZOS4
         )
 
         return rectified_left, rectified_right

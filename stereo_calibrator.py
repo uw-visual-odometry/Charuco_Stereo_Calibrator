@@ -21,9 +21,6 @@ def log_message(message, level="INFO"):
     print(f"{color}[{level.upper()}] {now} - {message}{reset_color}")
 
 
-log_message("Calibration started for stereo images.", level="INFO")
-
-
 def numerical_sort(value):
     """Helper function to extract numbers from a file name for sorting."""
     numbers = re.findall(r"\d+", value)
@@ -83,6 +80,8 @@ class StereoCalibrator:
             )
         else:
             self.known_camera_matrix = None
+
+        log_message("Calibration started for stereo images.", level="INFO")
 
     def measure_outlier(
         self, outlier_threshold_single: int = 1.5, outlier_threshold_stereo: int = 2.5
