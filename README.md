@@ -1,6 +1,6 @@
 # Overview
 
-The `StereoCalibrator` and `Rectifier` are Python tools for stereo camera calibration and rectification. They compute intrinsic and stereo parameters, rectify stereo images, and visualize epipolar geometry, essential for 3D vision tasks like depth estimation and 3D reconstruction.
+The `CharucoStereoCalibrator`, `StereoCalibrator` and `Rectifier` are Python tools for stereo camera calibration and rectification. They compute intrinsic and stereo parameters, rectify stereo images, and visualize epipolar geometry, essential for 3D vision tasks like depth estimation and 3D reconstruction.
 
 ---
 
@@ -13,6 +13,10 @@ The `StereoCalibrator` and `Rectifier` are Python tools for stereo camera calibr
 - Saves calibration data to `stereoMap.xml`.
 - Visualizes calibration errors and highlights outliers.
 
+#### CharucoStereoCalibrator
+- Support same feature above but using Charucoboard.
+- Feel free to use `generate_charuco.py` to generate your own Charucoboard. It's designed for A4 printing.
+
 #### Rectifier
 - Loads stereo calibration data from `stereoMap.xml`.
 - Rectifies stereo image pairs for horizontal alignment.
@@ -23,6 +27,12 @@ The `StereoCalibrator` and `Rectifier` are Python tools for stereo camera calibr
 ---
 
 ## Quick Start
+
+#### 0. Installation
+`CharucoCalibrator` is sensitive to opencv version, because there's big update since `4.7`
+```
+pip3 install opencv-python==4.10.0.84
+```
 
 #### 1. **Stereo Calibration**
 ```python

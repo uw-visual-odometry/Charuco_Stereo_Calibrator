@@ -27,14 +27,13 @@ def numerical_sort(value):
     return list(map(int, numbers))
 
 
-class StereoCalibrator:
+class CharucoStereoCalibrator:
 
     def __init__(
         self,
         chessboard_size=(10, 7),
         frame_size_h=2592,
         frame_size_w=4608,
-        size_of_chessboard_squares_mm=23,
         f_in_mm=2.75,
         pixel_size_mm=1.4e-3,
         debug=False,
@@ -42,23 +41,19 @@ class StereoCalibrator:
         self.chessboard_size = chessboard_size
         self.frame_size_h = frame_size_h
         self.frame_size_w = frame_size_w
-        self.size_of_chessboard_squares_mm = size_of_chessboard_squares_mm
         self.debug = debug
 
         # termination criteria
         self.criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-        # Prepare object points
-        objp = np.zeros((chessboard_size[0] * chessboard_size[1], 3), np.float32)
-        objp[:, :2] = np.mgrid[
-            0 : chessboard_size[0], 0 : chessboard_size[1]
-        ].T.reshape(-1, 2)
-
         # Initialize lists to store object points and image points (for both cameras)
         self.objpointsL = []  # 3d point in real-world space
         self.objpointsR = []  # 3d point in real-world space
-        self.imgpointsL = []  # 3d point in real-world space
-        self.imgpointsR = []  # 3d point in real-world space
+        self.imgpointsL = []  # 2d point in image plane
+        self.imgpointsR = []  # 2d point in image plane
+        self.objpoints_common = []  # 3d point in real-world space
+        self.imgpointsL_common = []  # 2d point in image plane
+        self.imgpointsR_common = []  # 2d point in image plane
         self.idL = []  # 2d points in left camera image plane.
         self.idR = []  # 2d points in right camera image plane.
 
@@ -96,8 +91,9 @@ class StereoCalibrator:
 
         # Calculate re-projection errors for each image set
         for (
-            objpointsL,
-            objpointsR,
+            objpoints,
+            imgpointsL,
+            imgpointsR,
             idL,
             idR,
             rvecL,
@@ -105,8 +101,9 @@ class StereoCalibrator:
             rvecR,
             tvecR,
         ) in zip(
-            self.objpointsL,
-            self.objpointsR,
+            self.objpoints_common,
+            self.imgpointsL_common,
+            self.imgpointsR_common,
             self.idL,
             self.idR,
             self.rvecsL,
@@ -115,10 +112,10 @@ class StereoCalibrator:
             self.tvecsR,
         ):
             projected_pointsL, _ = cv.projectPoints(
-                objpointsL, rvecL, tvecL, self.cameraMatrixL, self.distL
+                objpoints, rvecL, tvecL, self.cameraMatrixL, self.distL
             )
             projected_pointsR, _ = cv.projectPoints(
-                objpointsR, rvecR, tvecR, self.cameraMatrixR, self.distR
+                objpoints, rvecR, tvecR, self.cameraMatrixR, self.distR
             )
 
             errorL = cv.norm(imgpointsL, projected_pointsL, cv.NORM_L2) / len(
@@ -253,7 +250,7 @@ class StereoCalibrator:
         arucoParams = cv.aruco.DetectorParameters()
 
         self.board = cv.aruco.CharucoBoard(
-            self.chessboard_size, 0.02, 0.015, aruco_dict
+            self.chessboard_size, 20, 15, aruco_dict
         )  # self.square_length, marker_length
 
         for img_left_path, img_right_path in zip(images_left, images_right):
@@ -555,9 +552,6 @@ class StereoCalibrator:
         criteria_stereo = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
         # For stereo calibration, matched pairs are only used.
-        matched_object_points = []
-        matched_corners_left = []
-        matched_corners_right = []
         for i in range(min(len(self.idL), len(self.idR))):
             # Ensure matching ids in both left and right images
 
@@ -566,11 +560,19 @@ class StereoCalibrator:
                 indices_left = np.isin(self.idL[i], common_ids).flatten()
                 indices_right = np.isin(self.idR[i], common_ids).flatten()
 
-                matched_object_points.append(
-                    self.board.getChessboardCorners()[common_ids, :]
-                )
-                matched_corners_left.append(self.imgpointsL[i][indices_left])
-                matched_corners_right.append(self.imgpointsR[i][indices_right])
+                self.objpoints_common.append(self.objpointsL[i * 4][indices_left])
+                self.objpoints_common.append(self.objpointsL[i * 4 + 1][indices_left])
+                self.objpoints_common.append(self.objpointsL[i * 4 + 2][indices_left])
+                self.objpoints_common.append(self.objpointsL[i * 4 + 3][indices_left])
+                # since we use only common_id, objpointsL represents all.
+                self.imgpointsL_common.append(self.imgpointsL[i * 4][indices_left])
+                self.imgpointsL_common.append(self.imgpointsL[i * 4 + 1][indices_left])
+                self.imgpointsL_common.append(self.imgpointsL[i * 4 + 2][indices_left])
+                self.imgpointsL_common.append(self.imgpointsL[i * 4 + 3][indices_left])
+                self.imgpointsR_common.append(self.imgpointsR[i * 4][indices_right])
+                self.imgpointsR_common.append(self.imgpointsR[i * 4 + 1][indices_right])
+                self.imgpointsR_common.append(self.imgpointsR[i * 4 + 2][indices_right])
+                self.imgpointsR_common.append(self.imgpointsR[i * 4 + 3][indices_right])
 
         (
             retStereo,
@@ -583,9 +585,9 @@ class StereoCalibrator:
             E,
             F,
         ) = cv.stereoCalibrate(
-            matched_object_points,
-            matched_corners_left,
-            matched_corners_right,
+            self.objpoints_common,
+            self.imgpointsL_common,
+            self.imgpointsR_common,
             camera_matrix_L,
             dist_L,
             camera_matrix_R,
@@ -856,27 +858,25 @@ if __name__ == "__main__":
     chessboard_size = (8, 11)
     frame_size_h = 2592 // 2
     frame_size_w = 4608 // 2
-    size_of_chessboard_squares_mm = 23
 
     # if below is None, then algorithm figure this out.
     f_in_mm = 4.74
     pixel_size_mm = 1.4e-3 * 2  # binning
 
-    stereo_calibrator = StereoCalibrator(
+    stereo_calibrator = CharucoStereoCalibrator(
         chessboard_size=chessboard_size,
         frame_size_h=frame_size_h,
         frame_size_w=frame_size_w,
-        size_of_chessboard_squares_mm=size_of_chessboard_squares_mm,
         f_in_mm=f_in_mm,
         pixel_size_mm=pixel_size_mm,
-        debug=True,
+        debug=False,
     )
 
     left_show = "test_12mp_nonwide/1732617733_left.jpg"
     right_show = "test_12mp_nonwide/1732617733_right.jpg"
 
     stereo_calibrator.perform_calibration(images_left, images_right)
-    stereo_calibrator.save_rectified_images(images_left, images_right)
-    stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
-    stereo_calibrator.print_results()
+    # stereo_calibrator.save_rectified_images(images_left, images_right)
+    # stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
+    # stereo_calibrator.print_results()
     stereo_calibrator.measure_outlier()
