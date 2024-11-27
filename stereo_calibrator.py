@@ -277,7 +277,7 @@ class StereoCalibrator:
                     img_right_path,
                 )
 
-    def draw_thicker_markers(self, img, corners, thickness=10, radius=35):
+    def draw_thicker_markers(self, img, corners, thickness=8, radius=25):
         """Draw thicker circles at detected corners and connect them with lines using row-based colors."""
         cols, rows = self.chessboard_size
         num_corners = len(corners)
