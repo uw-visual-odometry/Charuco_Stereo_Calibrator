@@ -36,11 +36,17 @@ class CharucoStereoCalibrator:
         frame_size_w=4608,
         f_in_mm=2.75,
         pixel_size_mm=1.4e-3,
+        square_mm=20,
+        marker_mm=15,
+        aruco_dict=cv.aruco.DICT_4X4_250,
         debug=False,
     ):
         self.chessboard_size = chessboard_size
         self.frame_size_h = frame_size_h
         self.frame_size_w = frame_size_w
+        self.square_mm = square_mm
+        self.marker_mm = marker_mm
+        self.aruco_dict = aruco_dict
         self.debug = debug
 
         # termination criteria
@@ -244,14 +250,17 @@ class CharucoStereoCalibrator:
         images_right.sort(key=numerical_sort)
 
         # Parameters for ArUco detection
-        aruco_dict = cv.aruco.getPredefinedDictionary(
-            cv.aruco.DICT_4X4_250
-        )  # what is 1000?
+        aruco_dict = cv.aruco.getPredefinedDictionary(self.aruco_dict)
         arucoParams = cv.aruco.DetectorParameters()
+        arucoParams.cornerRefinementMethod = cv.aruco.CORNER_REFINE_SUBPIX
 
         self.board = cv.aruco.CharucoBoard(
-            self.chessboard_size, 20, 15, aruco_dict
-        )  # self.square_length, marker_length
+            self.chessboard_size, self.square_mm, self.marker_mm, aruco_dict
+        )
+
+        # Create detector
+        detector = cv.aruco.CharucoDetector(self.board)
+        detector.setDetectorParameters(arucoParams)
 
         for img_left_path, img_right_path in zip(images_left, images_right):
             img_left = cv.imread(img_left_path)
@@ -268,92 +277,67 @@ class CharucoStereoCalibrator:
                     f"File size and frame size do not match. file: {img_left_path}"
                 )
 
-            # Detect markers and interpolate Charuco corners
-            corners_left, ids_left, rejected_left = cv.aruco.detectMarkers(
-                gray_left, aruco_dict, parameters=arucoParams
+            charuco_corners_L, charuco_ids_L, markers_corners_L, markers_ids_L = (
+                detector.detectBoard(gray_left)
             )
 
-            corners_right, ids_right, rejected_right = cv.aruco.detectMarkers(
-                gray_right, aruco_dict, parameters=arucoParams
+            charuco_corners_L2 = cv.cornerSubPix(
+                gray_left, charuco_corners_L, (11, 11), (-1, -1), self.criteria
             )
 
-            # Validate the refined corner IDs before proceeding
-            if (
-                ids_left is not None
-                and len(ids_left) > 0
-                and ids_right is not None
-                and len(ids_right) > 0
-            ):
+            charuco_corners_R, charuco_ids_R, markers_corners_R, markers_ids_R = (
+                detector.detectBoard(gray_right)
+            )
+            charuco_corners_R2 = cv.cornerSubPix(
+                gray_left, charuco_corners_R, (11, 11), (-1, -1), self.criteria
+            )
+            obj_points_L, img_points_L = self.board.matchImagePoints(
+                detectedCorners=charuco_corners_L2, detectedIds=charuco_ids_L
+            )
+            self.imgpointsL.append(img_points_L)
+            self.objpointsL.append(obj_points_L)
 
-                corners_left2, ids_left2, rejected_left, ids_recovered_left = (
-                    cv.aruco.refineDetectedMarkers(
-                        gray_left,
-                        self.board,
-                        corners_left,
-                        ids_left,
-                        rejected_left,
-                        cameraMatrix=self.known_camera_matrix,
-                        distCoeffs=None,
-                    )
+            obj_points_R, img_points_R = self.board.matchImagePoints(
+                detectedCorners=charuco_corners_R2, detectedIds=charuco_ids_R
+            )
+            self.imgpointsR.append(img_points_R)
+            self.objpointsR.append(obj_points_R)
+
+            self.idL.append(charuco_ids_L)
+            self.idR.append(charuco_ids_R)
+
+            if charuco_corners_L2 is None or charuco_corners_R2 is None:
+                log_message(
+                    f"Charuco board couldn't be detected. Image pair: {img_left_path} and {img_right_path}",
+                    level="ERROR",
                 )
 
-                corners_right2, ids_right2, rejected_right, ids_recovered_right = (
-                    cv.aruco.refineDetectedMarkers(
-                        gray_right,
-                        self.board,
-                        corners_right,
-                        ids_right,
-                        rejected_right,
-                        cameraMatrix=self.known_camera_matrix,
-                        distCoeffs=None,
-                    )
-                )
-
-                # Convert the tuple of arrays into a single 3D NumPy array due to OpenCV error
-                corners_L_array = np.array(
-                    [corner[0] for corner in corners_left2], dtype=np.float32
-                )
-                corners_R_array = np.array(
-                    [corner[0] for corner in corners_right2], dtype=np.float32
-                )
-
-                # Ensure the structure is as expected: (n, 4, 2)
-                assert corners_L_array.shape[1] == 4
-                assert corners_R_array.shape[1] == 4
-
-                # Process the data to extract each i-th point across all corner sets
-                temp_fix_corners_left = [
-                    tuple(corners_L_array[:, i].reshape(-1, 1, 2)) for i in range(4)
-                ]
-                temp_fix_corners_right = [
-                    tuple(corners_R_array[:, i].reshape(-1, 1, 2)) for i in range(4)
-                ]
-
-                for temp_fix_corner_left in temp_fix_corners_left:
-                    (obj_points_L, img_points_L) = self.board.matchImagePoints(
-                        detectedCorners=temp_fix_corner_left, detectedIds=ids_left2
-                    )
-                    self.imgpointsL.append(img_points_L)
-                    self.objpointsL.append(obj_points_L)
-
-                for temp_fix_corner_right in temp_fix_corners_right:
-                    (obj_points_R, img_points_R) = self.board.matchImagePoints(
-                        detectedCorners=temp_fix_corner_right, detectedIds=ids_right2
-                    )
-                    self.imgpointsR.append(img_points_R)
-                    self.objpointsR.append(obj_points_R)
-
-                self.idL.append(ids_left2)
-                self.idR.append(ids_right2)
-
+            else:
                 if self.debug:
+                    cv.aruco.drawDetectedCornersCharuco(
+                        img_left, charuco_corners_L2, charuco_ids_L
+                    )
+                    cv.aruco.drawDetectedMarkers(
+                        img_left, markers_corners_L, markers_ids_L, (0, 0, 255)
+                    )
+                    cv.aruco.drawDetectedCornersCharuco(
+                        img_right, charuco_corners_R2, charuco_ids_R
+                    )
+                    cv.aruco.drawDetectedMarkers(
+                        img_right, markers_corners_R, markers_ids_R, (0, 0, 255)
+                    )
 
-                    cv.aruco.drawDetectedMarkers(
-                        img_left, corners_left2, ids_left2, (255, 0, 0)
+                    debug_dir = "debug"
+
+                    left_debug_path = os.path.join(
+                        debug_dir, f"charuco_{os.path.basename(img_left_path)}"
                     )
-                    cv.aruco.drawDetectedMarkers(
-                        img_right, corners_right2, ids_right2, (255, 0, 0)
+                    right_debug_path = os.path.join(
+                        debug_dir, f"charuco_{os.path.basename(img_right_path)}"
                     )
+                    cv.imwrite(left_debug_path, img_left)
+                    cv.imwrite(right_debug_path, img_right)
+
                     img_left_resized = cv.resize(img_left, (1920, 1080))
                     img_right_resized = cv.resize(img_right, (1920, 1080))
 
@@ -376,55 +360,7 @@ class CharucoStereoCalibrator:
                         if key == ord("c"):
                             break
 
-                cv.destroyAllWindows()  # Destroy the window after the key press
-            else:
-                log_message(
-                    f"Charuco board couldn't be detected. Image pair: {img_left_path} and {img_right_path}",
-                    level="ERROR",
-                )
-
-        if self.debug:
-            cv.destroyAllWindows()
-
-    def draw_thicker_markers(self, img, corners, thickness=8, radius=25):
-        """Draw thicker circles at detected corners and connect them with lines using row-based colors."""
-        cols, rows = self.chessboard_size
-        num_corners = len(corners)
-
-        # Define colors for alternating rows
-        colors = [
-            (255, 0, 0),  # Red
-            (0, 255, 0),  # Green
-            (0, 0, 255),  # Blue
-            (255, 255, 0),  # Cyan
-            (255, 0, 255),  # Magenta
-            (0, 255, 255),  # Yellow
-            (128, 0, 128),  # Purple
-            (0, 128, 128),  # Teal
-            (128, 128, 0),  # Olive
-            (128, 128, 128),  # Gray
-            (255, 128, 0),  # Orange
-            (255, 192, 203),  # Pink
-            (128, 0, 0),  # Maroon
-            (192, 192, 192),  # Silver
-            (0, 128, 0),  # Dark Green
-        ]
-
-        # Draw the circles and lines following the color for each row
-        for row in range(rows):
-            color = colors[row % len(colors)]  # Alternate colors based on row index
-            for col in range(cols):
-                idx = row * cols + col
-                if idx < num_corners:
-                    center = tuple(map(int, corners[idx].ravel()))
-                    cv.circle(img, center, radius, color, thickness)
-
-                    # Draw horizontal line to the next column if within bounds
-                    if col < cols - 1:
-                        next_idx = idx + 1
-                        if next_idx < num_corners:
-                            next_center = tuple(map(int, corners[next_idx].ravel()))
-                            cv.line(img, center, next_center, color, int(thickness / 2))
+                cv.destroyAllWindows()  # Destroy the window after the key pres
 
     def visualize_and_save_corners(
         self,
@@ -560,19 +496,9 @@ class CharucoStereoCalibrator:
                 indices_left = np.isin(self.idL[i], common_ids).flatten()
                 indices_right = np.isin(self.idR[i], common_ids).flatten()
 
-                self.objpoints_common.append(self.objpointsL[i * 4][indices_left])
-                self.objpoints_common.append(self.objpointsL[i * 4 + 1][indices_left])
-                self.objpoints_common.append(self.objpointsL[i * 4 + 2][indices_left])
-                self.objpoints_common.append(self.objpointsL[i * 4 + 3][indices_left])
-                # since we use only common_id, objpointsL represents all.
-                self.imgpointsL_common.append(self.imgpointsL[i * 4][indices_left])
-                self.imgpointsL_common.append(self.imgpointsL[i * 4 + 1][indices_left])
-                self.imgpointsL_common.append(self.imgpointsL[i * 4 + 2][indices_left])
-                self.imgpointsL_common.append(self.imgpointsL[i * 4 + 3][indices_left])
-                self.imgpointsR_common.append(self.imgpointsR[i * 4][indices_right])
-                self.imgpointsR_common.append(self.imgpointsR[i * 4 + 1][indices_right])
-                self.imgpointsR_common.append(self.imgpointsR[i * 4 + 2][indices_right])
-                self.imgpointsR_common.append(self.imgpointsR[i * 4 + 3][indices_right])
+                self.objpoints_common.append(self.objpointsL[i][indices_left])
+                self.imgpointsL_common.append(self.imgpointsL[i][indices_left])
+                self.imgpointsR_common.append(self.imgpointsR[i][indices_right])
 
         (
             retStereo,
@@ -855,7 +781,7 @@ if __name__ == "__main__":
     images_left = glob.glob("downloaded_images/charuco/left/*.jpg")
     images_right = glob.glob("downloaded_images/charuco/right/*.jpg")
 
-    chessboard_size = (8, 11)
+    chessboard_size = (11, 8)
     frame_size_h = 2592 // 2
     frame_size_w = 4608 // 2
 
@@ -869,14 +795,14 @@ if __name__ == "__main__":
         frame_size_w=frame_size_w,
         f_in_mm=f_in_mm,
         pixel_size_mm=pixel_size_mm,
-        debug=False,
+        debug=True,
     )
 
     left_show = "test_12mp_nonwide/1732617733_left.jpg"
     right_show = "test_12mp_nonwide/1732617733_right.jpg"
 
     stereo_calibrator.perform_calibration(images_left, images_right)
-    # stereo_calibrator.save_rectified_images(images_left, images_right)
-    # stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
-    # stereo_calibrator.print_results()
+    stereo_calibrator.save_rectified_images(images_left, images_right)
+    stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
+    stereo_calibrator.print_results()
     stereo_calibrator.measure_outlier()

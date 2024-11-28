@@ -80,6 +80,9 @@ rectifier.visualize_epipolar("left.jpg", "right.jpg", save=True)
 ## Notes
 - Ensure chessboard size matches the setup (`chessboard_size`).
 - Use `visualize_epipolar()` to verify and debug calibration.
+- Unlike Checker board, Charuco board is strict for the order of `col`, `row`
+  - Checker board considers the number of conjunctions.
+  - Charuco board considers the number of rows and columns of blocks.
 
 ---
 
