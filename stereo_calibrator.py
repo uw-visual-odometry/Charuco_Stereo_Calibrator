@@ -5,26 +5,7 @@ import re
 import os
 import matplotlib.pyplot as plt
 import datetime
-
-
-def log_message(message, level="INFO"):
-    """Helper function to log messages with color and timestamps."""
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    level_colors = {
-        "INFO": "\033[94m",  # Blue
-        "WARNING": "\033[93m",  # Yellow
-        "SUCCESS": "\033[92m",  # Green
-        "ERROR": "\033[91m",  # Red
-    }
-    reset_color = "\033[0m"
-    color = level_colors.get(level.upper(), "\033[94m")  # Default to Blue for INFO
-    print(f"{color}[{level.upper()}] {now} - {message}{reset_color}")
-
-
-def numerical_sort(value):
-    """Helper function to extract numbers from a file name for sorting."""
-    numbers = re.findall(r"\d+", value)
-    return list(map(int, numbers))
+from charuco_calibrator import numerical_sort, log_message
 
 
 class StereoCalibrator:
@@ -717,8 +698,8 @@ class StereoCalibrator:
 if __name__ == "__main__":
 
     # Example usage
-    images_left = glob.glob("downloaded_images/left/*.jpg")
-    images_right = glob.glob("downloaded_images/right/*.jpg")
+    images_left = glob.glob("downloaded_images/standard/left/*.jpg")
+    images_right = glob.glob("downloaded_images/standard/right/*.jpg")
 
     chessboard_size = (7, 10)
     frame_size_h = 2592 // 2

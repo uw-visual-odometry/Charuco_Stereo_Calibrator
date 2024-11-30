@@ -14,7 +14,10 @@ The `CharucoStereoCalibrator`, `StereoCalibrator` and `Rectifier` are Python too
 - Visualizes calibration errors and highlights outliers.
 
 #### CharucoStereoCalibrator
-- Support same feature above but using Charucoboard.
+- Support same feature with `StereoCalibrator` but using Charucoboard.
+
+#### CharucoCalibrator
+- One camera calibrator using Charucoboard.
 - Feel free to use `generate_charuco.py` to generate your own Charucoboard. It's designed for A4 printing.
 
 #### Rectifier

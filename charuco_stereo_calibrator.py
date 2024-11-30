@@ -1,56 +1,15 @@
 import numpy as np
 import cv2 as cv
 import glob
-import re
 import os
 import matplotlib.pyplot as plt
-import datetime
+from charuco_calibrator import *
 
 
-def log_message(message, level="INFO"):
-    """Helper function to log messages with color and timestamps."""
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    level_colors = {
-        "INFO": "\033[94m",  # Blue
-        "WARNING": "\033[93m",  # Yellow
-        "SUCCESS": "\033[92m",  # Green
-        "ERROR": "\033[91m",  # Red
-    }
-    reset_color = "\033[0m"
-    color = level_colors.get(level.upper(), "\033[94m")  # Default to Blue for INFO
-    print(f"{color}[{level.upper()}] {now} - {message}{reset_color}")
+class CharucoStereoCalibrator(CharucoCalibrator):
 
-
-def numerical_sort(value):
-    """Helper function to extract numbers from a file name for sorting."""
-    numbers = re.findall(r"\d+", value)
-    return list(map(int, numbers))
-
-
-class CharucoStereoCalibrator:
-
-    def __init__(
-        self,
-        chessboard_size=(10, 7),
-        frame_size_h=2592,
-        frame_size_w=4608,
-        f_in_mm=2.75,
-        pixel_size_mm=1.4e-3,
-        square_mm=20,
-        marker_mm=15,
-        aruco_dict=cv.aruco.DICT_4X4_250,
-        debug=False,
-    ):
-        self.chessboard_size = chessboard_size
-        self.frame_size_h = frame_size_h
-        self.frame_size_w = frame_size_w
-        self.square_mm = square_mm
-        self.marker_mm = marker_mm
-        self.aruco_dict = aruco_dict
-        self.debug = debug
-
-        # termination criteria
-        self.criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         # Initialize lists to store object points and image points (for both cameras)
         self.objpointsL = []  # 3d point in real-world space
@@ -62,10 +21,6 @@ class CharucoStereoCalibrator:
         self.imgpointsR_common = []  # 2d point in image plane
         self.idL = []  # 2d points in left camera image plane.
         self.idR = []  # 2d points in right camera image plane.
-
-        # Intrinsic parameters
-        self.f_in_mm = f_in_mm
-        self.pixel_size_mm = pixel_size_mm
         self.board = None
 
         if self.f_in_mm is not None and self.pixel_size_mm is not None:
@@ -289,78 +244,78 @@ class CharucoStereoCalibrator:
                 detector.detectBoard(gray_right)
             )
             charuco_corners_R2 = cv.cornerSubPix(
-                gray_left, charuco_corners_R, (11, 11), (-1, -1), self.criteria
+                gray_right, charuco_corners_R, (11, 11), (-1, -1), self.criteria
             )
             obj_points_L, img_points_L = self.board.matchImagePoints(
                 detectedCorners=charuco_corners_L2, detectedIds=charuco_ids_L
             )
-            self.imgpointsL.append(img_points_L)
-            self.objpointsL.append(obj_points_L)
 
             obj_points_R, img_points_R = self.board.matchImagePoints(
                 detectedCorners=charuco_corners_R2, detectedIds=charuco_ids_R
             )
-            self.imgpointsR.append(img_points_R)
-            self.objpointsR.append(obj_points_R)
-
-            self.idL.append(charuco_ids_L)
-            self.idR.append(charuco_ids_R)
 
             if charuco_corners_L2 is None or charuco_corners_R2 is None:
                 log_message(
                     f"Charuco board couldn't be detected. Image pair: {img_left_path} and {img_right_path}",
                     level="ERROR",
                 )
+                continue
 
-            else:
-                if self.debug:
-                    cv.aruco.drawDetectedCornersCharuco(
-                        img_left, charuco_corners_L2, charuco_ids_L
-                    )
-                    cv.aruco.drawDetectedMarkers(
-                        img_left, markers_corners_L, markers_ids_L, (0, 0, 255)
-                    )
-                    cv.aruco.drawDetectedCornersCharuco(
-                        img_right, charuco_corners_R2, charuco_ids_R
-                    )
-                    cv.aruco.drawDetectedMarkers(
-                        img_right, markers_corners_R, markers_ids_R, (0, 0, 255)
-                    )
+            self.imgpointsL.append(img_points_L)
+            self.objpointsL.append(obj_points_L)
+            self.imgpointsR.append(img_points_R)
+            self.objpointsR.append(obj_points_R)
+            self.idL.append(charuco_ids_L)
+            self.idR.append(charuco_ids_R)
 
-                    debug_dir = "debug"
+            if self.debug:
+                cv.aruco.drawDetectedCornersCharuco(
+                    img_left, charuco_corners_L2, charuco_ids_L
+                )
+                cv.aruco.drawDetectedMarkers(
+                    img_left, markers_corners_L, markers_ids_L, (0, 0, 255)
+                )
+                cv.aruco.drawDetectedCornersCharuco(
+                    img_right, charuco_corners_R2, charuco_ids_R
+                )
+                cv.aruco.drawDetectedMarkers(
+                    img_right, markers_corners_R, markers_ids_R, (0, 0, 255)
+                )
 
-                    left_debug_path = os.path.join(
-                        debug_dir, f"charuco_{os.path.basename(img_left_path)}"
-                    )
-                    right_debug_path = os.path.join(
-                        debug_dir, f"charuco_{os.path.basename(img_right_path)}"
-                    )
-                    cv.imwrite(left_debug_path, img_left)
-                    cv.imwrite(right_debug_path, img_right)
+                debug_dir = "debug"
 
-                    img_left_resized = cv.resize(img_left, (1920, 1080))
-                    img_right_resized = cv.resize(img_right, (1920, 1080))
+                left_debug_path = os.path.join(
+                    debug_dir, f"charuco_{os.path.basename(img_left_path)}"
+                )
+                right_debug_path = os.path.join(
+                    debug_dir, f"charuco_{os.path.basename(img_right_path)}"
+                )
+                cv.imwrite(left_debug_path, img_left)
+                cv.imwrite(right_debug_path, img_right)
 
-                    # Combine the images side by side by concatenating them horizontally
-                    combined_image = cv.hconcat([img_left_resized, img_right_resized])
+                img_left_resized = cv.resize(img_left, (1920, 1080))
+                img_right_resized = cv.resize(img_right, (1920, 1080))
 
-                    # Create a resizable window for visualization
-                    cv.namedWindow("Calibration Debug", cv.WINDOW_NORMAL)
+                # Combine the images side by side by concatenating them horizontally
+                combined_image = cv.hconcat([img_left_resized, img_right_resized])
 
-                    # Resize the window if needed
-                    cv.resizeWindow(
-                        "Calibration Debug", 960 * 2, 540
-                    )  # Adjust the size as needed
+                # Create a resizable window for visualization
+                cv.namedWindow("Calibration Debug", cv.WINDOW_NORMAL)
 
-                    # Display the combined image
-                    cv.imshow("Calibration Debug", combined_image)
-                    # Wait until 'c' is pressed
-                    while True:
-                        key = cv.waitKey(1) & 0xFF  # Wait for a key press
-                        if key == ord("c"):
-                            break
+                # Resize the window if needed
+                cv.resizeWindow(
+                    "Calibration Debug", 960 * 2, 540
+                )  # Adjust the size as needed
 
-                cv.destroyAllWindows()  # Destroy the window after the key pres
+                # Display the combined image
+                cv.imshow("Calibration Debug", combined_image)
+                # Wait until 'c' is pressed
+                while True:
+                    key = cv.waitKey(1) & 0xFF  # Wait for a key press
+                    if key == ord("c"):
+                        break
+
+            cv.destroyAllWindows()  # Destroy the window after the key pres
 
     def visualize_and_save_corners(
         self,
@@ -414,34 +369,6 @@ class CharucoStereoCalibrator:
         cv.imwrite(right_debug_path, img_right)
         cv.waitKey(2000)  # Wait for 2000 milliseconds
         cv.destroyAllWindows()  # Close windows after visualization
-
-    def calibrate_camera(self, objpoints, imgpoints):
-        """Calibrate the camera using the provided image points."""
-        if self.known_camera_matrix is not None:
-            given_camera_matrix = self.known_camera_matrix.copy()
-
-            ret, camera_matrix, dist, rvecs, tvecs = cv.calibrateCamera(
-                objpoints,
-                imgpoints,
-                (self.frame_size_w, self.frame_size_h),
-                given_camera_matrix,  # this matrix will be updated in openCV
-                distCoeffs=None,
-                flags=(
-                    cv.CALIB_USE_INTRINSIC_GUESS
-                    + cv.CALIB_FIX_FOCAL_LENGTH
-                    + cv.CALIB_FIX_PRINCIPAL_POINT
-                ),
-            )
-
-        else:
-            ret, camera_matrix, dist, rvecs, tvecs = cv.calibrateCamera(
-                objpoints,
-                imgpoints,
-                (self.frame_size_w, self.frame_size_h),
-                None,
-                None,
-            )
-        return ret, camera_matrix, dist, rvecs, tvecs
 
     def perform_calibration(self, images_left, images_right):
         """Main function to perform stereo calibration."""
@@ -795,7 +722,7 @@ if __name__ == "__main__":
         frame_size_w=frame_size_w,
         f_in_mm=f_in_mm,
         pixel_size_mm=pixel_size_mm,
-        debug=True,
+        debug=False,
     )
 
     left_show = "test_12mp_nonwide/1732617733_left.jpg"
