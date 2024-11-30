@@ -28,13 +28,14 @@ def numerical_sort(value):
 
 
 class CharucoCalibrator:
+
     def __init__(
         self,
         chessboard_size=(10, 7),
         frame_size_h=2592,
         frame_size_w=4608,
-        f_in_mm=2.75,
-        pixel_size_mm=1.4e-3,
+        f_in_mm=None,
+        pixel_size_mm=None,
         square_mm=20,
         marker_mm=15,
         aruco_dict=cv.aruco.DICT_4X4_250,

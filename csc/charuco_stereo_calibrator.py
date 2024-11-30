@@ -8,7 +8,7 @@ from csc.charuco_calibrator import *
 
 class CharucoStereoCalibrator(CharucoCalibrator):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, known_extrinsic_R=None, known_extrinsic_T=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Initialize lists to store object points and image points (for both cameras)
@@ -22,6 +22,8 @@ class CharucoStereoCalibrator(CharucoCalibrator):
         self.idL = []  # 2d points in left camera image plane.
         self.idR = []  # 2d points in right camera image plane.
         self.board = None
+        self.known_extrinsic_R = known_extrinsic_R
+        self.known_extrinsic_T = known_extrinsic_T
 
         if self.f_in_mm is not None and self.pixel_size_mm is not None:
             f_in_pixels = self.f_in_mm / self.pixel_size_mm
@@ -412,7 +414,11 @@ class CharucoStereoCalibrator(CharucoCalibrator):
 
     def stereo_calibration(self, camera_matrix_L, dist_L, camera_matrix_R, dist_R):
         """Perform stereo calibration."""
-        flags = cv.CALIB_FIX_INTRINSIC
+
+        flags = cv.CALIB_USE_INTRINSIC_GUESS + cv.CALIB_SAME_FOCAL_LENGTH
+        if self.known_extrinsic_T is not None and self.known_extrinsic_R is not None:
+            flags += cv.CALIB_USE_EXTRINSIC_GUESS
+
         criteria_stereo = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
         # For stereo calibration, matched pairs are only used.
@@ -428,6 +434,22 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 self.imgpointsL_common.append(self.imgpointsL[i][indices_left])
                 self.imgpointsR_common.append(self.imgpointsR[i][indices_right])
 
+        result = cv.stereoCalibrateExtended(
+            objectPoints=self.objpoints_common,
+            imagePoints1=self.imgpointsL_common,
+            imagePoints2=self.imgpointsR_common,
+            cameraMatrix1=camera_matrix_L,
+            distCoeffs1=dist_L,
+            cameraMatrix2=camera_matrix_R,
+            distCoeffs2=dist_R,
+            imageSize=(self.frame_size_w, self.frame_size_h),
+            R=self.known_extrinsic_R,
+            T=self.known_extrinsic_T,
+            criteria=criteria_stereo,
+            flags=flags,
+        )
+
+        # Unpack only needed portions
         (
             retStereo,
             newCameraMatrixL,
@@ -438,18 +460,10 @@ class CharucoStereoCalibrator(CharucoCalibrator):
             trans,
             E,
             F,
-        ) = cv.stereoCalibrate(
-            self.objpoints_common,
-            self.imgpointsL_common,
-            self.imgpointsR_common,
-            camera_matrix_L,
-            dist_L,
-            camera_matrix_R,
-            dist_R,
-            (self.frame_size_w, self.frame_size_h),
-            criteria_stereo,
-            flags,
-        )
+            *extra_outputs,
+        ) = result
+        # TODO: figuire out what extra_outputs are.
+
         log_message(
             f"🎥 Stereo Camera Calibration RMS Error: {retStereo:.4f}", "SUCCESS"
         )
@@ -458,7 +472,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
         self.F = F
 
         # Stereo Rectification
-        rectify_scale = 1
+        alpha = 0  # 1: no crop, 0: fully crop, [0-1]: somewhere in between
         rectL, rectR, projMatrixL, projMatrixR, Q, roi_L, roi_R = cv.stereoRectify(
             cameraMatrix1=newCameraMatrixL,
             distCoeffs1=distL,
@@ -467,7 +481,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
             imageSize=(self.frame_size_w, self.frame_size_h),
             R=rot,
             T=trans,
-            alpha=rectify_scale,
+            alpha=alpha,
             newImageSize=(0, 0),
         )
 
@@ -717,13 +731,25 @@ if __name__ == "__main__":
     f_in_mm = 4.74
     pixel_size_mm = 1.4e-3 * 2  # binning
 
+    # only if it's stereo vision. if not, return None
+    baseline_mm = 40
+    known_extrinsic_R = np.eye(3)  # None if you don't know
+    if baseline_mm is not None:
+        known_extrinsic_T = np.array(
+            [-1 * baseline_mm, 0, 0], dtype=np.float64
+        )  # Translation vector
+    else:
+        known_extrinsic_T = None
+
     stereo_calibrator = CharucoStereoCalibrator(
         chessboard_size=chessboard_size,
         frame_size_h=frame_size_h,
         frame_size_w=frame_size_w,
         f_in_mm=f_in_mm,
         pixel_size_mm=pixel_size_mm,
-        debug=True,
+        known_extrinsic_R=known_extrinsic_R,
+        known_extrinsic_T=known_extrinsic_T,
+        debug=False,
     )
 
     left_show = "demo/samples/left_sample.jpg"
