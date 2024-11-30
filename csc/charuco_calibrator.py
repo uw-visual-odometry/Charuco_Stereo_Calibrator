@@ -169,7 +169,7 @@ class CharucoCalibrator:
 if __name__ == "__main__":
     # Example usage for single camera calibration
 
-    images_path = "downloaded_images/charuco/right/*.jpg"
+    images_path = "input/charuco/right/*.jpg"
     image_files = glob.glob(images_path)
 
     chessboard_size = (11, 8)

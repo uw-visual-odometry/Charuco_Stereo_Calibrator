@@ -1,7 +1,7 @@
 import cv2 as cv
 import numpy as np
 import os
-from stereo_calibrator import log_message
+from csc.standard_stereo_calibrator import log_message
 
 
 # Skew-symmetric matrix for a vector
@@ -202,8 +202,9 @@ class Rectifier:
         cv.imshow("Epipolar Geometry - Rectified Images with Epilines", combined_output)
 
         if save:
-            os.makedirs("epipolar_visualizations", exist_ok=True)
-            output_path = "epipolar_visualizations/epilines_visualization.jpg"
+            save_path = "output/rectifier/epipolar_visualizations"
+            os.makedirs(save_path, exist_ok=True)
+            output_path = os.path.join(save_path, "epilines_visualization.jpg")
             cv.imwrite(output_path, combined_output)
             log_message(
                 f"Epipolar visualization saved to {output_path}", level="SUCCESS"
@@ -222,15 +223,15 @@ if __name__ == "__main__":
     )
 
     # Example stereo image paths
-    left_image_path = "test_12mp_nonwide/1732617733_left.jpg"
-    right_image_path = "test_12mp_nonwide/1732617733_right.jpg"
+    left_image_path = "demo/samples/left_sample.jpg"
+    right_image_path = "demo/samples/right_sample.jpg"
 
     # Rectify stereo pairs
     rectified_left, rectified_right = rectifier.rectify_image(
         left_image_path, right_image_path
     )
-    cv.imwrite("rectified_left.jpg", rectified_left)
-    cv.imwrite("rectified_right.jpg", rectified_right)
+    cv.imwrite("output/rectifier/rectified_left.jpg", rectified_left)
+    cv.imwrite("output/rectifier/rectified_right.jpg", rectified_right)
     log_message("Rectified images saved successfully!", level="SUCCESS")
 
     # Visualize epipolar geometry with epilines

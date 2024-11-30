@@ -3,7 +3,7 @@ import cv2 as cv
 import glob
 import os
 import matplotlib.pyplot as plt
-from charuco_calibrator import *
+from csc.charuco_calibrator import *
 
 
 class CharucoStereoCalibrator(CharucoCalibrator):
@@ -152,8 +152,8 @@ class CharucoStereoCalibrator(CharucoCalibrator):
         images_right.sort(key=numerical_sort)
 
         # Create directories for saving the rectified images
-        full_dir = "./rectified/full"
-        roi_dir = "./rectified/only_roi"
+        full_dir = "output/csc/rectified/full"
+        roi_dir = "output/csc/rectified/only_roi"
         os.makedirs(full_dir, exist_ok=True)
         os.makedirs(roi_dir, exist_ok=True)
 
@@ -174,8 +174,8 @@ class CharucoStereoCalibrator(CharucoCalibrator):
             imgR_filename = os.path.basename(img_right_path)
             rectifiedL_filename = f"{os.path.splitext(imgL_filename)[0]}_rectified.jpg"
             rectifiedR_filename = f"{os.path.splitext(imgR_filename)[0]}_rectified.jpg"
-            rectifiedL_path = os.path.join(full_dir, "full", rectifiedL_filename)
-            rectifiedR_path = os.path.join(full_dir, "full", rectifiedR_filename)
+            rectifiedL_path = os.path.join(full_dir, rectifiedL_filename)
+            rectifiedR_path = os.path.join(full_dir, rectifiedR_filename)
 
             cv.imwrite(rectifiedL_path, rectifiedL)
             cv.imwrite(rectifiedR_path, rectifiedR)
@@ -282,7 +282,8 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                     img_right, markers_corners_R, markers_ids_R, (0, 0, 255)
                 )
 
-                debug_dir = "debug"
+                debug_dir = "output/csc/checker_debug"
+                os.makedirs(save_path, exist_ok=True)
 
                 left_debug_path = os.path.join(
                     debug_dir, f"charuco_{os.path.basename(img_left_path)}"
@@ -655,7 +656,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
 
             # Save the visualization if required
             if save:
-                output_folder = "epipolar_geometry_visualizations"
+                output_folder = "output/csc/epipolar_geometry_vis"
                 os.makedirs(output_folder, exist_ok=True)
                 output_path = os.path.join(
                     output_folder, f"epipolar_image_pair_{idx + 1}.jpg"
@@ -705,8 +706,8 @@ class CharucoStereoCalibrator(CharucoCalibrator):
 if __name__ == "__main__":
 
     # Example usage
-    images_left = glob.glob("downloaded_images/charuco/left/*.jpg")
-    images_right = glob.glob("downloaded_images/charuco/right/*.jpg")
+    images_left = glob.glob("input/charuco/left/*.jpg")
+    images_right = glob.glob("input/charuco/right/*.jpg")
 
     chessboard_size = (11, 8)
     frame_size_h = 2592 // 2
@@ -722,11 +723,11 @@ if __name__ == "__main__":
         frame_size_w=frame_size_w,
         f_in_mm=f_in_mm,
         pixel_size_mm=pixel_size_mm,
-        debug=False,
+        debug=True,
     )
 
-    left_show = "test_12mp_nonwide/1732617733_left.jpg"
-    right_show = "test_12mp_nonwide/1732617733_right.jpg"
+    left_show = "demo/samples/left_sample.jpg"
+    right_show = "demo/samples/right_sample.jpg"
 
     stereo_calibrator.perform_calibration(images_left, images_right)
     stereo_calibrator.save_rectified_images(images_left, images_right)

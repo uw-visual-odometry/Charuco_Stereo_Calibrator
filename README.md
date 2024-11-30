@@ -32,36 +32,53 @@ The `CharucoStereoCalibrator`, `StereoCalibrator` and `Rectifier` are Python too
 ## Quick Start
 
 #### 0. Installation
-`CharucoCalibrator` is sensitive to opencv version, because there's big update since `4.7`
+
 ```
-pip3 install opencv-python==4.10.0.84
+conda create -n csc python=3.12 -y
+conda activate csc
+pip install -e .
 ```
 
-#### 1. **Stereo Calibration**
+`CharucoCalibrator` is sensitive to opencv version, because there's big update since `4.6`
+
+#### 1. **Calibration**
 ```python
-images_left = glob.glob("images/left/*.jpg")
-images_right = glob.glob("images/right/*.jpg")
+from scs.calibrator import CharucoStereoCalibrator
 
-# Perform calibration
-stereo_calibrator = StereoCalibrator(
-    chessboard_size=(7, 10), frame_size_h=1296, frame_size_w=2304, size_of_chessboard_squares_mm=23
+# Specify image paths
+images_left = glob.glob("input/charuco/left/*.jpg")
+images_right = glob.glob("input/charuco/right/*.jpg")
+
+# Specify number of column, row of checkerboard
+chessboard_size = (11, 8) 
+
+# Specify image sizes
+frame_size_h = 1296 
+frame_size_w = 2304 
+
+# [Optional] if you don't know camera spec, then algorithm figure this out.
+f_in_mm = 4.74 # or None
+pixel_size_mm = 1.4e-3 # or None
+debug = True # or False
+
+stereo_calibrator = CharucoStereoCalibrator(
+    chessboard_size=chessboard_size,
+    frame_size_h=frame_size_h,
+    frame_size_w=frame_size_w,
+    f_in_mm=f_in_mm,
+    pixel_size_mm=pixel_size_mm,
+    debug=debug,
 )
+
+# Specify samples to show epipolar geometry qualitatively to evaluate calibration
+left_show = "demo/samples/left_sample.jpg"
+right_show = "demo/samples/right_sample.jpg"
+
 stereo_calibrator.perform_calibration(images_left, images_right)
+stereo_calibrator.save_rectified_images(images_left, images_right)
+stereo_calibrator.visualize_epipolar(left_show, right_show, save=debug)
 stereo_calibrator.print_results()
-```
-- Calibration outputs are saved in `stereoMap.xml`.
-
-#### 2. **Stereo Rectification and Epipolar Visualization**
-```python
-rectifier = Rectifier(calibration_file="stereoMap.xml", visualization_dims=(960, 540))
-
-# Rectify images
-left, right = rectifier.rectify_image("left.jpg", "right.jpg")
-cv.imwrite("rectified_left.jpg", left)
-cv.imwrite("rectified_right.jpg", right)
-
-# Visualize epipolar geometry
-rectifier.visualize_epipolar("left.jpg", "right.jpg", save=True)
+stereo_calibrator.measure_outlier()
 ```
 
 ---

@@ -1,11 +1,9 @@
 import numpy as np
 import cv2 as cv
 import glob
-import re
 import os
 import matplotlib.pyplot as plt
-import datetime
-from charuco_calibrator import numerical_sort, log_message
+from csc.charuco_calibrator import numerical_sort, log_message
 
 
 class StereoCalibrator:
@@ -162,8 +160,8 @@ class StereoCalibrator:
         images_right.sort(key=numerical_sort)
 
         # Create directories for saving the rectified images
-        full_dir = "./rectified/full"
-        roi_dir = "./rectified/only_roi"
+        full_dir = "output/ssc/rectified/full"
+        roi_dir = "output/ssc/rectified/only_roi"
         os.makedirs(full_dir, exist_ok=True)
         os.makedirs(roi_dir, exist_ok=True)
 
@@ -184,8 +182,8 @@ class StereoCalibrator:
             imgR_filename = os.path.basename(img_right_path)
             rectifiedL_filename = f"{os.path.splitext(imgL_filename)[0]}_rectified.jpg"
             rectifiedR_filename = f"{os.path.splitext(imgR_filename)[0]}_rectified.jpg"
-            rectifiedL_path = os.path.join(full_dir, "full", rectifiedL_filename)
-            rectifiedR_path = os.path.join(full_dir, "full", rectifiedR_filename)
+            rectifiedL_path = os.path.join(full_dir, rectifiedL_filename)
+            rectifiedR_path = os.path.join(full_dir, rectifiedR_filename)
 
             cv.imwrite(rectifiedL_path, rectifiedL)
             cv.imwrite(rectifiedR_path, rectifiedR)
@@ -310,7 +308,7 @@ class StereoCalibrator:
         img_right_path,
     ):
         # Create a debug directory if it doesn't exist
-        debug_dir = "debug"
+        debug_dir = "output/ssc/checker_debug"
         if not os.path.exists(debug_dir):
             os.makedirs(debug_dir)
 
@@ -648,7 +646,7 @@ class StereoCalibrator:
 
             # Save the visualization if required
             if save:
-                output_folder = "epipolar_geometry_visualizations"
+                output_folder = "output/ssc/epipolar_geometry_vis"
                 os.makedirs(output_folder, exist_ok=True)
                 output_path = os.path.join(
                     output_folder, f"epipolar_image_pair_{idx + 1}.jpg"
@@ -698,8 +696,8 @@ class StereoCalibrator:
 if __name__ == "__main__":
 
     # Example usage
-    images_left = glob.glob("downloaded_images/standard/left/*.jpg")
-    images_right = glob.glob("downloaded_images/standard/right/*.jpg")
+    images_left = glob.glob("input/standard/left/*.jpg")
+    images_right = glob.glob("input/standard/right/*.jpg")
 
     chessboard_size = (7, 10)
     frame_size_h = 2592 // 2
@@ -720,8 +718,8 @@ if __name__ == "__main__":
         debug=False,
     )
 
-    left_show = "test_12mp_nonwide/1732617733_left.jpg"
-    right_show = "test_12mp_nonwide/1732617733_right.jpg"
+    left_show = "demo/samples/left_sample.jpg"
+    right_show = "demo/samples/right_sample.jpg"
 
     stereo_calibrator.perform_calibration(images_left, images_right)
     stereo_calibrator.save_rectified_images(images_left, images_right)
