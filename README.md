@@ -43,7 +43,8 @@ pip install -e .
 
 #### 1. **Calibration**
 ```python
-from scs.calibrator import CharucoStereoCalibrator
+from csc.charuco_stereo_calibrator import CharucoStereoCalibrator
+import glob
 
 # Specify image paths
 images_left = glob.glob("input/charuco/left/*.jpg")
@@ -59,7 +60,7 @@ frame_size_w = 2304
 # [Optional] if you don't know camera spec, then algorithm figure this out.
 f_in_mm = 4.74 # or None
 pixel_size_mm = 1.4e-3 # or None
-debug = True # or False
+debug = False # or False
 
 stereo_calibrator = CharucoStereoCalibrator(
     chessboard_size=chessboard_size,
@@ -80,6 +81,8 @@ stereo_calibrator.visualize_epipolar(left_show, right_show, save=debug)
 stereo_calibrator.print_results()
 stereo_calibrator.measure_outlier()
 ```
+
+**Note:** To explore additional examples, please refer to the `__main__` section within each function.
 
 ---
 

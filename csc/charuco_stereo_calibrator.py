@@ -24,9 +24,9 @@ class CharucoStereoCalibrator(CharucoCalibrator):
         self.board = None
 
         if self.f_in_mm is not None and self.pixel_size_mm is not None:
-            f_in_pixels = f_in_mm / pixel_size_mm
-            cx_in_pixel = frame_size_w // 2
-            cy_in_pixel = frame_size_h // 2
+            f_in_pixels = self.f_in_mm / self.pixel_size_mm
+            cx_in_pixel = self.frame_size_w // 2
+            cy_in_pixel = self.frame_size_h // 2
 
             # Note: if sensor pixel is not square, it needs fx and fy.
             self.known_camera_matrix = np.array(
