@@ -283,7 +283,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 )
 
                 debug_dir = "output/csc/checker_debug"
-                os.makedirs(save_path, exist_ok=True)
+                os.makedirs(debug_dir, exist_ok=True)
 
                 left_debug_path = os.path.join(
                     debug_dir, f"charuco_{os.path.basename(img_left_path)}"
@@ -460,15 +460,15 @@ class CharucoStereoCalibrator(CharucoCalibrator):
         # Stereo Rectification
         rectify_scale = 1
         rectL, rectR, projMatrixL, projMatrixR, Q, roi_L, roi_R = cv.stereoRectify(
-            newCameraMatrixL,
-            distL,
-            newCameraMatrixR,
-            distR,
-            (self.frame_size_w, self.frame_size_h),
-            rot,
-            trans,
-            rectify_scale,
-            (0, 0),
+            cameraMatrix1=newCameraMatrixL,
+            distCoeffs1=distL,
+            cameraMatrix2=newCameraMatrixR,
+            distCoeffs2=distR,
+            imageSize=(self.frame_size_w, self.frame_size_h),
+            R=rot,
+            T=trans,
+            alpha=rectify_scale,
+            newImageSize=(0, 0),
         )
 
         self.rectL = rectL
