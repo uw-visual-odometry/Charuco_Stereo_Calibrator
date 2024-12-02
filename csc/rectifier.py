@@ -223,8 +223,8 @@ if __name__ == "__main__":
     )
 
     # Example stereo image paths
-    left_image_path = "demo/samples/left_sample.jpg"
-    right_image_path = "demo/samples/right_sample.jpg"
+    left_image_path = "demo/samples/left_sample1.jpg"
+    right_image_path = "demo/samples/right_sample1.jpg"
 
     # Rectify stereo pairs
     rectified_left, rectified_right = rectifier.rectify_image(

@@ -19,6 +19,10 @@ class CharucoStereoCalibrator(CharucoCalibrator):
         self.objpoints_common = []  # 3d point in real-world space
         self.imgpointsL_common = []  # 2d point in image plane
         self.imgpointsR_common = []  # 2d point in image plane
+        self.rvecsL_common = []
+        self.tvecsL_common = []
+        self.rvecsR_common = []
+        self.tvecsR_common = []
         self.idL = []  # 2d points in left camera image plane.
         self.idR = []  # 2d points in right camera image plane.
         self.board = None
@@ -57,8 +61,6 @@ class CharucoStereoCalibrator(CharucoCalibrator):
             objpoints,
             imgpointsL,
             imgpointsR,
-            idL,
-            idR,
             rvecL,
             tvecL,
             rvecR,
@@ -67,12 +69,10 @@ class CharucoStereoCalibrator(CharucoCalibrator):
             self.objpoints_common,
             self.imgpointsL_common,
             self.imgpointsR_common,
-            self.idL,
-            self.idR,
-            self.rvecsL,
-            self.tvecsL,
-            self.rvecsR,
-            self.tvecsR,
+            self.rvecsL_common,
+            self.tvecsL_common,
+            self.rvecsR_common,
+            self.tvecsR_common,
         ):
             projected_pointsL, _ = cv.projectPoints(
                 objpoints, rvecL, tvecL, self.cameraMatrixL, self.distL
@@ -320,59 +320,6 @@ class CharucoStereoCalibrator(CharucoCalibrator):
 
             cv.destroyAllWindows()  # Destroy the window after the key pres
 
-    def visualize_and_save_corners(
-        self,
-        img_left,
-        corners2_left,
-        ret_left,
-        img_right,
-        corners2_right,
-        ret_right,
-        img_left_path,
-        img_right_path,
-    ):
-        # Create a debug directory if it doesn't exist
-        debug_dir = "debug"
-        if not os.path.exists(debug_dir):
-            os.makedirs(debug_dir)
-
-        """Visualize and save chessboard corners if debug is enabled."""
-        cv.drawChessboardCorners(
-            img_left, self.chessboard_size, corners2_left, ret_left
-        )
-        cv.drawChessboardCorners(
-            img_right, self.chessboard_size, corners2_right, ret_right
-        )
-
-        # Optionally, overlay thicker markers on each corner
-        self.draw_thicker_markers(img_left, corners2_left)
-        self.draw_thicker_markers(img_right, corners2_right)
-
-        # Concatenate images horizontally
-        combined_image = np.hstack((img_left, img_right))
-
-        # Create a resizable window for visualization
-        cv.namedWindow("Stereo Calibration Debug", cv.WINDOW_NORMAL)
-
-        # Resize the window if needed
-        cv.resizeWindow(
-            "Stereo Calibration Debug", 960 * 2, 540
-        )  # Adjust the size as needed
-
-        # Display the combined image
-        cv.imshow("Stereo Calibration Debug", combined_image)
-
-        left_debug_path = os.path.join(
-            debug_dir, f"checker_{os.path.basename(img_left_path)}"
-        )
-        right_debug_path = os.path.join(
-            debug_dir, f"checker_{os.path.basename(img_right_path)}"
-        )
-        cv.imwrite(left_debug_path, img_left)
-        cv.imwrite(right_debug_path, img_right)
-        cv.waitKey(2000)  # Wait for 2000 milliseconds
-        cv.destroyAllWindows()  # Close windows after visualization
-
     def perform_calibration(self, images_left, images_right):
         """Main function to perform stereo calibration."""
         log_message("Starting stereo image processing...", "INFO")
@@ -387,12 +334,22 @@ class CharucoStereoCalibrator(CharucoCalibrator):
         log_message(f"🎥 Left Camera Calibration RMS Error: {retL:.4f}", "SUCCESS")
         self.print_pretty_matrix("Left Camera Matrix", cameraMatrixL)
 
+        self.rvecsL = rvecsL
+        self.tvecsL = tvecsL
+        self.cameraMatrixL = cameraMatrixL
+        self.distL = distL
+
         log_message("Calibrating the right camera...", "INFO")
         retR, cameraMatrixR, distR, rvecsR, tvecsR = self.calibrate_camera(
             self.objpointsR, self.imgpointsR
         )
         log_message(f"🎥 Right Camera Calibration RMS Error: {retR:.4f}", "SUCCESS")
         self.print_pretty_matrix("Right Camera Matrix", cameraMatrixR)
+
+        self.rvecsR = rvecsR
+        self.tvecsR = tvecsR
+        self.cameraMatrixR = cameraMatrixR
+        self.distR = distR
 
         log_message("Performing stereo calibration...", "INFO")
         self.stereo_calibration(cameraMatrixL, distL, cameraMatrixR, distR)
@@ -402,24 +359,19 @@ class CharucoStereoCalibrator(CharucoCalibrator):
 
         log_message("Stereo calibration completed successfully!", "SUCCESS")
 
-        # Save results for class attributes
-        self.rvecsL = rvecsL
-        self.tvecsL = tvecsL
-        self.rvecsR = rvecsR
-        self.tvecsR = tvecsR
-        self.cameraMatrixL = cameraMatrixL
-        self.distL = distL
-        self.cameraMatrixR = cameraMatrixR
-        self.distR = distR
-
     def stereo_calibration(self, camera_matrix_L, dist_L, camera_matrix_R, dist_R):
         """Perform stereo calibration."""
 
         flags = cv.CALIB_USE_INTRINSIC_GUESS + cv.CALIB_SAME_FOCAL_LENGTH
+
         if self.known_extrinsic_T is not None and self.known_extrinsic_R is not None:
             flags += cv.CALIB_USE_EXTRINSIC_GUESS
 
-        criteria_stereo = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+        criteria_stereo = (
+            cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER,
+            3000,
+            0.001,
+        )
 
         # For stereo calibration, matched pairs are only used.
         for i in range(min(len(self.idL), len(self.idR))):
@@ -433,6 +385,10 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 self.objpoints_common.append(self.objpointsL[i][indices_left])
                 self.imgpointsL_common.append(self.imgpointsL[i][indices_left])
                 self.imgpointsR_common.append(self.imgpointsR[i][indices_right])
+                self.rvecsL_common.append(self.rvecsL[i])
+                self.tvecsL_common.append(self.tvecsL[i])
+                self.rvecsR_common.append(self.rvecsR[i])
+                self.tvecsR_common.append(self.tvecsR[i])
 
         result = cv.stereoCalibrateExtended(
             objectPoints=self.objpoints_common,
@@ -731,15 +687,15 @@ if __name__ == "__main__":
     f_in_mm = 4.74
     pixel_size_mm = 1.4e-3 * 2  # binning
 
-    # only if it's stereo vision. if not, return None
-    baseline_mm = 40
-    known_extrinsic_R = np.eye(3)  # None if you don't know
-    if baseline_mm is not None:
-        known_extrinsic_T = np.array(
-            [-1 * baseline_mm, 0, 0], dtype=np.float64
-        )  # Translation vector
-    else:
-        known_extrinsic_T = None
+    ### Only if the rig is really reliable, then use below. ###
+    # baseline_mm = 40
+    # known_extrinsic_R = np.eye(3)  # None if you don't know
+    # if baseline_mm is not None:
+    #     known_extrinsic_T = np.array(
+    #         [-1 * baseline_mm, 0, 0], dtype=np.float64
+    #     )  # Translation vector
+    # else:
+    #     known_extrinsic_T = None
 
     stereo_calibrator = CharucoStereoCalibrator(
         chessboard_size=chessboard_size,
@@ -747,13 +703,13 @@ if __name__ == "__main__":
         frame_size_w=frame_size_w,
         f_in_mm=f_in_mm,
         pixel_size_mm=pixel_size_mm,
-        known_extrinsic_R=known_extrinsic_R,
-        known_extrinsic_T=known_extrinsic_T,
+        known_extrinsic_R=None,
+        known_extrinsic_T=None,
         debug=False,
     )
 
-    left_show = "demo/samples/left_sample.jpg"
-    right_show = "demo/samples/right_sample.jpg"
+    left_show = "demo/samples/left_sample1.jpg"
+    right_show = "demo/samples/right_sample1.jpg"
 
     stereo_calibrator.perform_calibration(images_left, images_right)
     stereo_calibrator.save_rectified_images(images_left, images_right)
