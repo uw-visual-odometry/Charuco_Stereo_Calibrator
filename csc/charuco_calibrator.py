@@ -58,8 +58,8 @@ class CharucoCalibrator:
 
         if self.f_in_mm is not None and self.pixel_size_mm is not None:
             f_in_pixels = f_in_mm / pixel_size_mm
-            cx_in_pixel = frame_size_w // 2
-            cy_in_pixel = frame_size_h // 2
+            cx_in_pixel = (frame_size_w - 1) / 2
+            cy_in_pixel = (frame_size_h - 1) / 2
 
             # Note: if sensor pixel is not square, it needs fx and fy.
             self.known_camera_matrix = np.array(
@@ -86,8 +86,8 @@ class CharucoCalibrator:
                 distCoeffs=None,
                 flags=(
                     cv.CALIB_USE_INTRINSIC_GUESS
-                    + cv.CALIB_FIX_FOCAL_LENGTH
                     + cv.CALIB_FIX_PRINCIPAL_POINT
+                    + cv.CALIB_FIX_K3
                 ),
             )
 
@@ -140,7 +140,7 @@ class CharucoCalibrator:
             if charuco_ids is not None:
                 if len(charuco_ids) > 3:  # if at least 4 charuco corners are found
                     cv.cornerSubPix(
-                        gray, charuco_corners, (11, 11), (-1, -1), self.criteria
+                        gray, charuco_corners, (17, 17), (-1, -1), self.criteria
                     )
                     obj_points, img_points = self.board.matchImagePoints(
                         charuco_corners, charuco_ids

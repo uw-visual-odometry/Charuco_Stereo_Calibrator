@@ -238,30 +238,31 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 detector.detectBoard(gray_left)
             )
 
-            charuco_corners_L2 = cv.cornerSubPix(
-                gray_left, charuco_corners_L, (11, 11), (-1, -1), self.criteria
-            )
-
             charuco_corners_R, charuco_ids_R, markers_corners_R, markers_ids_R = (
                 detector.detectBoard(gray_right)
             )
-            charuco_corners_R2 = cv.cornerSubPix(
-                gray_right, charuco_corners_R, (11, 11), (-1, -1), self.criteria
-            )
-            obj_points_L, img_points_L = self.board.matchImagePoints(
-                detectedCorners=charuco_corners_L2, detectedIds=charuco_ids_L
-            )
 
-            obj_points_R, img_points_R = self.board.matchImagePoints(
-                detectedCorners=charuco_corners_R2, detectedIds=charuco_ids_R
-            )
-
-            if charuco_corners_L2 is None or charuco_corners_R2 is None:
+            if charuco_corners_L is None or charuco_corners_R is None:
                 log_message(
                     f"Charuco board couldn't be detected. Image pair: {img_left_path} and {img_right_path}",
                     level="ERROR",
                 )
                 continue
+
+            cv.cornerSubPix(
+                gray_left, charuco_corners_L, (17, 17), (-1, -1), self.criteria
+            )
+
+            cv.cornerSubPix(
+                gray_right, charuco_corners_R, (17, 17), (-1, -1), self.criteria
+            )
+            obj_points_L, img_points_L = self.board.matchImagePoints(
+                detectedCorners=charuco_corners_L, detectedIds=charuco_ids_L
+            )
+
+            obj_points_R, img_points_R = self.board.matchImagePoints(
+                detectedCorners=charuco_corners_R, detectedIds=charuco_ids_R
+            )
 
             self.imgpointsL.append(img_points_L)
             self.objpointsL.append(obj_points_L)
@@ -696,6 +697,7 @@ if __name__ == "__main__":
     #     )  # Translation vector
     # else:
     #     known_extrinsic_T = None
+    ###
 
     stereo_calibrator = CharucoStereoCalibrator(
         chessboard_size=chessboard_size,
