@@ -115,18 +115,30 @@ def waitCapture(video_path, time, output_folder, frame_interval):
     
     
 
-#Example usage:
-video_path = "/home/sysop/bag/aaron_video/2025_04_07_hh101_calibration.mp4"
-output_folder = "./images/Aaron-Cal/"
-waitCapture(video_path, 6, output_folder, 6)
+# #Example usage:
+# video_path = "/home/sysop/bag/aaron_video/2025_04_07_hh101_calibration.mp4"
+# output_folder = "./images/Aaron-Cal/"
+# waitCapture(video_path, 6, output_folder, 6)
+#
+# images = glob.glob('./images/Aaron-Cal/*.png')
+# output_folder = "./images/AC_split/"
+# i = 0
+# for image_path in images:
+#     print(image_path)
+#     splitLR(image_path, output_folder, i)
+#     i += 1
 
-images = glob.glob('./images/Aaron-Cal/*.png')
-output_folder = "./images/AC_split/"
-i = 0
-for image_path in images:
-    print(image_path)
-    splitLR(image_path, output_folder, i)
-    i += 1
+
+#Example usage:
+video_path = "./calib1_left.mp4"
+output_folder = "./images/sa2/left"
+waitCapture(video_path, 0, output_folder, 6)
+
+
+video_path = "./calib1_right.mp4"
+output_folder = "./images/sa2/right"
+waitCapture(video_path, 0, output_folder, 6)
+
 
 '''
 video_path = "./underwater.mp4"

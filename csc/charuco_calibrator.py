@@ -38,7 +38,8 @@ class CharucoCalibrator:
         pixel_size_mm=None,
         square_mm=20,
         marker_mm=15,
-        aruco_dict=cv.aruco.DICT_4X4_250,
+        # aruco_dict=cv.aruco.DICT_4X4_250,
+        aruco_dict=3,
         debug=False,
     ):
         self.chessboard_size = chessboard_size
@@ -115,6 +116,25 @@ class CharucoCalibrator:
         arucoParams = cv.aruco.DetectorParameters()
         arucoParams.cornerRefinementMethod = cv.aruco.CORNER_REFINE_SUBPIX
 
+
+        # 降低阈值来适应模糊图像
+        # arucoParams.adaptiveThreshWinSizeMin = 3  # 默认为3，可以尝试降低
+        # arucoParams.adaptiveThreshWinSizeMax = 1000  # 默认为23，可以尝试增加
+        # arucoParams.adaptiveThreshWinSizeStep = 2  # 默认为10，可以调整步长
+        # # #
+        # # # # 降低最小边缘距离要求
+        # arucoParams.minMarkerPerimeterRate = 0.01  # 默认通常为0.03，可以降低到0.01
+        # arucoParams.maxMarkerPerimeterRate = 2000.0  # 默认通常为4.0，可以增加
+        # #
+        # # # 增加角点误差容忍度
+        # arucoParams.polygonalApproxAccuracyRate = 0.01  # 默认通常为0.03，增加容忍度
+        # #
+        # # # 关闭额外的边缘过滤
+        # arucoParams.minCornerDistanceRate = 0.01  # 默认值较小，增加容忍度
+        #
+        # # 调整细化方法
+        # arucoParams.cornerRefinementMethod = cv.aruco.CORNER_REFINE_CONTOUR  # 尝试不同的细化方法
+
         self.board = cv.aruco.CharucoBoard(
             self.chessboard_size, self.square_mm, self.marker_mm, aruco_dict
         )
@@ -136,8 +156,10 @@ class CharucoCalibrator:
             # Detect Charuco board
             arucoParams = cv.aruco.DetectorParameters()
             charuco_corners, charuco_ids, _, _ = detector.detectBoard(gray)
-
+            if charuco_ids is None:
+                log_message(f'{img_path} not detected.', 'ERROR')
             if charuco_ids is not None:
+                log_message(f'{img_path} detected.')
                 if len(charuco_ids) > 3:  # if at least 4 charuco corners are found
                     cv.cornerSubPix(
                         gray, charuco_corners, (17, 17), (-1, -1), self.criteria
@@ -170,16 +192,16 @@ class CharucoCalibrator:
 if __name__ == "__main__":
     # Example usage for single camera calibration
 
-    images_path = "input/charuco/right/*.jpg"
+    images_path = "./output1/left/*.jpg"
     image_files = glob.glob(images_path)
 
     chessboard_size = (11, 8)
-    frame_size_h = 2592 // 2
-    frame_size_w = 4608 // 2
+    frame_size_h = 1088
+    frame_size_w = 1440
 
     # if below is None, then the algorithm will try to deduce it
-    f_in_mm = 4.74
-    pixel_size_mm = 1.4e-3 * 2  # binning factor
+    f_in_mm = None # 4.74
+    pixel_size_mm = None # 1.4e-3 * 2  # binning factor
 
     calibrator = CharucoCalibrator(
         chessboard_size=chessboard_size,

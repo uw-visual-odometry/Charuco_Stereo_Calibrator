@@ -242,7 +242,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 detector.detectBoard(gray_right)
             )
 
-            if charuco_corners_L is None or charuco_corners_R is None:
+            if (charuco_corners_L is None or charuco_corners_R is None) or (len(charuco_corners_L) < 4 or len(charuco_corners_R) < 4):
                 log_message(
                     f"Charuco board couldn't be detected. Image pair: {img_left_path} and {img_right_path}",
                     level="ERROR",
@@ -270,16 +270,15 @@ class CharucoStereoCalibrator(CharucoCalibrator):
             self.objpointsR.append(obj_points_R)
             self.idL.append(charuco_ids_L)
             self.idR.append(charuco_ids_R)
-
             if self.debug:
                 cv.aruco.drawDetectedCornersCharuco(
-                    img_left, charuco_corners_L2, charuco_ids_L
+                    img_left, charuco_corners_L, charuco_ids_L
                 )
                 cv.aruco.drawDetectedMarkers(
                     img_left, markers_corners_L, markers_ids_L, (0, 0, 255)
                 )
                 cv.aruco.drawDetectedCornersCharuco(
-                    img_right, charuco_corners_R2, charuco_ids_R
+                    img_right, charuco_corners_R, charuco_ids_R
                 )
                 cv.aruco.drawDetectedMarkers(
                     img_right, markers_corners_R, markers_ids_R, (0, 0, 255)
@@ -320,6 +319,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                         break
 
             cv.destroyAllWindows()  # Destroy the window after the key pres
+            # print('total image pairs used:', len(self.idL))
 
     def perform_calibration(self, images_left, images_right):
         """Main function to perform stereo calibration."""

@@ -3,9 +3,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 def generate_charuco_board(
-    CHARUCOBOARD_ROWCOUNT=15,
-    CHARUCOBOARD_COLCOUNT=24,
-    dictionary_id=cv.aruco.DICT_5X5_1000,
+    CHARUCOBOARD_ROWCOUNT=8,
+    CHARUCOBOARD_COLCOUNT=11,
+    dictionary_id=cv.aruco.DICT_4X4_1000,
     DPI=300,
     paper_size="A3",
 ):
@@ -134,9 +134,9 @@ def generate_charuco_board(
 
 
 generate_charuco_board(
-    CHARUCOBOARD_ROWCOUNT=15,
-    CHARUCOBOARD_COLCOUNT=24,
-    dictionary_id=cv.aruco.DICT_5X5_1000,
+    CHARUCOBOARD_ROWCOUNT=8,
+    CHARUCOBOARD_COLCOUNT=11,
+    dictionary_id=cv.aruco.DICT_4X4_50,
     DPI=300,
     paper_size="A2",
 )
