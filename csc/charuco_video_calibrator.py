@@ -244,7 +244,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 detector.detectBoard(gray_right)
             )
 
-            if (charuco_corners_L is None or charuco_corners_R is None) or (len(charuco_corners_L) < 4 or len(charuco_corners_R) < 4):
+            if (charuco_corners_L is None or charuco_corners_R is None) or (len(charuco_corners_L) < 6 or len(charuco_corners_R) < 6):
                 log_message(
                     f"Charuco board couldn't be detected. Image pair: {img_left_path} and {img_right_path}",
                     level="ERROR",
@@ -921,8 +921,9 @@ class CharucoStereoCalibrator(CharucoCalibrator):
 
 if __name__ == "__main__":
 
-    images_left = glob.glob("../images/AC_split/l/*.jpg")
-    images_right = glob.glob("../images/AC_split/r/*.jpg")
+    path = ['../images/aquarium/', 'png']
+    images_left = glob.glob(path[0] + "left/*." + path[1])
+    images_right = glob.glob(path[0] + "right/*." + path[1])
 
     chessboard_size = (11, 8)
     frame_size_h = 1088 #2592 // 2
@@ -967,6 +968,6 @@ if __name__ == "__main__":
     # video_right = "./Data/Collection3/straight_data_closer_right.mp4"
     # stereo_calibrator.save_rectified_video(video_left, video_right)
     
-    stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
+    # stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
     stereo_calibrator.print_results()
     stereo_calibrator.measure_outlier()

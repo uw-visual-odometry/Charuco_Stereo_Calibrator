@@ -201,7 +201,8 @@ class CharucoStereoCalibrator(CharucoCalibrator):
 
     def process_images(self, images_left, images_right):
         """Process stereo images to find Charuco corners."""
-
+        total_images = len(images_left)
+        not_used_images = 0
         # Sort images to maintain consistent pairing
         images_left.sort(key=numerical_sort)
         images_right.sort(key=numerical_sort)
@@ -242,7 +243,8 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 detector.detectBoard(gray_right)
             )
 
-            if (charuco_corners_L is None or charuco_corners_R is None) or (len(charuco_corners_L) < 4 or len(charuco_corners_R) < 4):
+            if (charuco_corners_L is None or charuco_corners_R is None) or (len(charuco_corners_L) < 6 or len(charuco_corners_R) < 6):
+                not_used_images += 1
                 log_message(
                     f"Charuco board couldn't be detected. Image pair: {img_left_path} and {img_right_path}",
                     level="ERROR",
@@ -295,30 +297,30 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 )
                 cv.imwrite(left_debug_path, img_left)
                 cv.imwrite(right_debug_path, img_right)
-
-                img_left_resized = cv.resize(img_left, (1920, 1080))
-                img_right_resized = cv.resize(img_right, (1920, 1080))
-
-                # Combine the images side by side by concatenating them horizontally
-                combined_image = cv.hconcat([img_left_resized, img_right_resized])
-
-                # Create a resizable window for visualization
-                cv.namedWindow("Calibration Debug", cv.WINDOW_NORMAL)
-
-                # Resize the window if needed
-                cv.resizeWindow(
-                    "Calibration Debug", 960 * 2, 540
-                )  # Adjust the size as needed
-
-                # Display the combined image
-                cv.imshow("Calibration Debug", combined_image)
-                # Wait until 'c' is pressed
-                while True:
-                    key = cv.waitKey(1) & 0xFF  # Wait for a key press
-                    if key == ord("c"):
-                        break
-
-            cv.destroyAllWindows()  # Destroy the window after the key pres
+        print('pick rate', 100 - 100 * not_used_images / total_images)
+            #     img_left_resized = cv.resize(img_left, (1920, 1080))
+            #     img_right_resized = cv.resize(img_right, (1920, 1080))
+            #
+            #     # Combine the images side by side by concatenating them horizontally
+            #     combined_image = cv.hconcat([img_left_resized, img_right_resized])
+            #
+            #     # Create a resizable window for visualization
+            #     cv.namedWindow("Calibration Debug", cv.WINDOW_NORMAL)
+            #
+            #     # Resize the window if needed
+            #     cv.resizeWindow(
+            #         "Calibration Debug", 960 * 2, 540
+            #     )  # Adjust the size as needed
+            #
+            #     # Display the combined image
+            #     cv.imshow("Calibration Debug", combined_image)
+            #     # Wait until 'c' is pressed
+            #     while True:
+            #         key = cv.waitKey(1) & 0xFF  # Wait for a key press
+            #         if key == ord("c"):
+            #             break
+            #
+            # cv.destroyAllWindows()  # Destroy the window after the key pres
             # print('total image pairs used:', len(self.idL))
 
     def perform_calibration(self, images_left, images_right):
@@ -615,15 +617,15 @@ class CharucoStereoCalibrator(CharucoCalibrator):
             )
 
             # Create a resizable window
-            cv.namedWindow(
-                f"Epipolar Geometry Visualization - Pair {idx + 1}", cv.WINDOW_NORMAL
-            )
-            cv.imshow(
-                f"Epipolar Geometry Visualization - Pair {idx + 1}", resized_output
-            )
-
-            # Display the result for a specified duration or until a key is pressed
-            cv.waitKey(7000)  # Display for 3 seconds or adjust as needed
+            # cv.namedWindow(
+            #     f"Epipolar Geometry Visualization - Pair {idx + 1}", cv.WINDOW_NORMAL
+            # )
+            # cv.imshow(
+            #     f"Epipolar Geometry Visualization - Pair {idx + 1}", resized_output
+            # )
+            #
+            # # Display the result for a specified duration or until a key is pressed
+            # cv.waitKey(7000)  # Display for 3 seconds or adjust as needed
 
             # Save the visualization if required
             if save:
@@ -635,7 +637,7 @@ class CharucoStereoCalibrator(CharucoCalibrator):
                 cv.imwrite(output_path, combined_output)
 
         # Clean up OpenCV windows
-        cv.destroyAllWindows()
+        # cv.destroyAllWindows()
 
     def draw_epilines_on_image(
         self, img, epilines, points, color=(0, 255, 0), thickness=2
@@ -715,6 +717,6 @@ if __name__ == "__main__":
 
     stereo_calibrator.perform_calibration(images_left, images_right)
     stereo_calibrator.save_rectified_images(images_left, images_right)
-    stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
+    # stereo_calibrator.visualize_epipolar(left_show, right_show, save=True)
     stereo_calibrator.print_results()
-    stereo_calibrator.measure_outlier()
+    # stereo_calibrator.measure_outlier()

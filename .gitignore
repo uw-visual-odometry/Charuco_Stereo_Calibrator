@@ -1,0 +1,7 @@
+images/
+result/
+.idea/
+.vscode/
+.DS_Store
+__pycache__/
+*.egg-info/

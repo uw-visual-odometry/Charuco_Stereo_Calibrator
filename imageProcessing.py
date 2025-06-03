@@ -18,7 +18,8 @@ def video_to_png(video_path, output_folder, frame_interval):
     frame_count = 0
     image_count = 0
 
-    while frame_count < 200: # True:
+    # while frame_count < 200: # True:
+    while True:  # True:
         success, frame = video_capture.read()
         if not success:
             break
@@ -97,11 +98,13 @@ def waitCapture(video_path, time, output_folder, frame_interval):
     frame_count = 0
     image_count = 0
 
-    while frame_count < 1000: # True:
+    # while frame_count < 1000: # True:
+    while True:  # True:
         success, frame = cap.read()
         if not success:
             break
 
+        frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
         if frame_count % frame_interval == 0:
             output_file = os.path.join(output_folder, f"frame_{image_count:04d}.png")
             cv.imwrite(output_file, frame)
@@ -115,13 +118,13 @@ def waitCapture(video_path, time, output_folder, frame_interval):
     
     
 
-# #Example usage:
+# water tank
 # video_path = "/home/sysop/bag/aaron_video/2025_04_07_hh101_calibration.mp4"
-# output_folder = "./images/Aaron-Cal/"
+# output_folder = "./images/aaron/st/"
 # waitCapture(video_path, 6, output_folder, 6)
 #
-# images = glob.glob('./images/Aaron-Cal/*.png')
-# output_folder = "./images/AC_split/"
+# images = glob.glob('./images/aaron/st/*.png')
+# output_folder = "./images/aaron/"
 # i = 0
 # for image_path in images:
 #     print(image_path)
@@ -129,15 +132,17 @@ def waitCapture(video_path, time, output_folder, frame_interval):
 #     i += 1
 
 
-#Example usage:
-video_path = "./calib1_left.mp4"
+# the aquarium
+start_time=10
+interval=2
+# Aquarium test video
+video_path = "/home/sysop/aquarium_test_data/calibration_mp4/calib2_left.mp4"
 output_folder = "./images/sa2/left"
-waitCapture(video_path, 0, output_folder, 6)
+waitCapture(video_path, start_time, output_folder, interval)
 
-
-video_path = "./calib1_right.mp4"
+video_path = "/home/sysop/aquarium_test_data/calibration_mp4/calib2_right.mp4"
 output_folder = "./images/sa2/right"
-waitCapture(video_path, 0, output_folder, 6)
+waitCapture(video_path, start_time, output_folder, interval)
 
 
 '''
